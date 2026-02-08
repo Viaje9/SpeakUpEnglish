@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import type { Voice } from "../../shared/types";
 import VoiceSelect from "./VoiceSelect";
 import { sendVoicePreview } from "../lib/api";
+import { releaseAudioFocus, requestAudioFocus } from "../lib/audioFocus";
 
 interface Props {
   voice: Voice;
@@ -57,9 +58,15 @@ export default function SettingsPage({
     setIsPreviewing(true);
     try {
       const { audioBase64 } = await sendVoicePreview(v, draftApiKey);
-      if (audioRef.current) audioRef.current.pause();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        releaseAudioFocus(audioRef.current);
+      }
       const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+      audio.onpause = () => releaseAudioFocus(audio);
+      audio.onended = () => releaseAudioFocus(audio);
       audioRef.current = audio;
+      requestAudioFocus(audio);
       await audio.play();
     } catch {
       // silent fail

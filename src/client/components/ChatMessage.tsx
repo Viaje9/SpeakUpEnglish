@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage as ChatMessageType } from "../../shared/types";
 import { sendTranslate } from "../lib/api";
+import { releaseAudioFocus, requestAudioFocus } from "../lib/audioFocus";
 import AudioPlayer from "./AudioPlayer";
 
 interface Props {
@@ -44,15 +45,25 @@ export default function ChatMessage({ message, isLatest, apiKey }: Props) {
     if (audio.ended || (audio.duration && audio.currentTime >= audio.duration - 0.05)) {
       audio.currentTime = 0;
     }
+    requestAudioFocus(audio);
     audio.play().catch(() => {});
   };
 
   useEffect(() => {
     if (isUser || !message.audioBase64 || !aiAudioRef.current) return;
     const audio = aiAudioRef.current;
-    const onEnded = () => setIsAiPlaying(false);
-    const onPlay = () => setIsAiPlaying(true);
-    const onPause = () => setIsAiPlaying(false);
+    const onEnded = () => {
+      setIsAiPlaying(false);
+      releaseAudioFocus(audio);
+    };
+    const onPlay = () => {
+      requestAudioFocus(audio);
+      setIsAiPlaying(true);
+    };
+    const onPause = () => {
+      setIsAiPlaying(false);
+      releaseAudioFocus(audio);
+    };
 
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("play", onPlay);
@@ -60,6 +71,7 @@ export default function ChatMessage({ message, isLatest, apiKey }: Props) {
 
     if (isLatest) {
       audio.currentTime = 0;
+      requestAudioFocus(audio);
       audio.play().catch(() => {});
     }
 

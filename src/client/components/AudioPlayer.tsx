@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { releaseAudioFocus, requestAudioFocus } from "../lib/audioFocus";
 
 interface AudioPlayerProps {
   base64: string;
@@ -24,9 +25,18 @@ export default function AudioPlayer({
     const audio = audioRef.current;
     if (!audio) return;
 
-    const onEnded = () => setPlaying(false);
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
+    const onEnded = () => {
+      setPlaying(false);
+      releaseAudioFocus(audio);
+    };
+    const onPlay = () => {
+      requestAudioFocus(audio);
+      setPlaying(true);
+    };
+    const onPause = () => {
+      setPlaying(false);
+      releaseAudioFocus(audio);
+    };
 
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("play", onPlay);
@@ -41,6 +51,7 @@ export default function AudioPlayer({
 
   useEffect(() => {
     if (autoPlay && audioRef.current) {
+      requestAudioFocus(audioRef.current);
       audioRef.current.play().catch(() => {});
     }
   }, [base64, autoPlay]);
@@ -56,6 +67,7 @@ export default function AudioPlayer({
       audio.pause();
     } else {
       audio.currentTime = 0;
+      requestAudioFocus(audio);
       audio.play().catch(() => {});
     }
   };
