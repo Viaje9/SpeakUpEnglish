@@ -13,7 +13,18 @@ export interface ChatRequest {
   voice: Voice;
 }
 
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  promptTextTokens: number;
+  promptAudioTokens: number;
+  completionTextTokens: number;
+  completionAudioTokens: number;
+}
+
 export interface ChatResponse {
   transcript: string;
   audioBase64: string;
+  usage: TokenUsage;
 }

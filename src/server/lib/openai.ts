@@ -21,7 +21,7 @@ export async function chat(
   audioBase64: string,
   history: ChatMessage[],
   voice: Voice = "alloy",
-): Promise<{ transcript: string; audioBase64: string }> {
+): Promise<{ transcript: string; audioBase64: string; usage: import("../../shared/types.js").TokenUsage }> {
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM_PROMPT },
   ];
@@ -53,7 +53,20 @@ export async function chat(
   const transcript = choice.message.audio?.transcript ?? choice.message.content ?? "";
   const responseAudio = choice.message.audio?.data ?? "";
 
-  return { transcript, audioBase64: responseAudio };
+  const promptDetails = response.usage?.prompt_tokens_details as Record<string, number> | undefined;
+  const completionDetails = response.usage?.completion_tokens_details as Record<string, number> | undefined;
+
+  const usage = {
+    promptTokens: response.usage?.prompt_tokens ?? 0,
+    completionTokens: response.usage?.completion_tokens ?? 0,
+    totalTokens: response.usage?.total_tokens ?? 0,
+    promptTextTokens: promptDetails?.text_tokens ?? 0,
+    promptAudioTokens: promptDetails?.audio_tokens ?? 0,
+    completionTextTokens: completionDetails?.text_tokens ?? 0,
+    completionAudioTokens: completionDetails?.audio_tokens ?? 0,
+  };
+
+  return { transcript, audioBase64: responseAudio, usage };
 }
 
 export async function previewVoice(voice: Voice): Promise<string> {

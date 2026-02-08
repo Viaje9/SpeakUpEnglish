@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import type { ChatMessage as ChatMessageType, Voice } from "../shared/types";
+import type { ChatMessage as ChatMessageType, Voice, TokenUsage } from "../shared/types";
 import { VOICES } from "../shared/types";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import { blobToWavBase64 } from "./lib/audioUtils";
@@ -12,6 +12,10 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [voice, setVoice] = useState<Voice>("nova");
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [totalUsage, setTotalUsage] = useState<TokenUsage>({
+    promptTokens: 0, completionTokens: 0, totalTokens: 0,
+    promptTextTokens: 0, promptAudioTokens: 0, completionTextTokens: 0, completionAudioTokens: 0,
+  });
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const { isRecording, start, stop } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -71,6 +75,15 @@ export default function App() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+      setTotalUsage((prev) => ({
+        promptTokens: prev.promptTokens + response.usage.promptTokens,
+        completionTokens: prev.completionTokens + response.usage.completionTokens,
+        totalTokens: prev.totalTokens + response.usage.totalTokens,
+        promptTextTokens: prev.promptTextTokens + response.usage.promptTextTokens,
+        promptAudioTokens: prev.promptAudioTokens + response.usage.promptAudioTokens,
+        completionTextTokens: prev.completionTextTokens + response.usage.completionTextTokens,
+        completionAudioTokens: prev.completionAudioTokens + response.usage.completionAudioTokens,
+      }));
     } catch (err) {
       console.error("Send failed:", err);
       // Remove the user message placeholder on error
@@ -134,6 +147,24 @@ export default function App() {
         ))}
         <div ref={messagesEndRef} />
       </main>
+
+      {/* Token usage & cost */}
+      {totalUsage.totalTokens > 0 && (() => {
+        const USD_PER_M = { textIn: 0.15, audioIn: 10, textOut: 0.60, audioOut: 20 };
+        const TWD_RATE = 32.5;
+        const costUSD =
+          (totalUsage.promptTextTokens * USD_PER_M.textIn +
+           totalUsage.promptAudioTokens * USD_PER_M.audioIn +
+           totalUsage.completionTextTokens * USD_PER_M.textOut +
+           totalUsage.completionAudioTokens * USD_PER_M.audioOut) / 1_000_000;
+        const costTWD = costUSD * TWD_RATE;
+        return (
+          <div className="border-t bg-gray-50 px-4 py-1.5 text-center text-[11px] text-gray-400">
+            Tokens: {totalUsage.totalTokens.toLocaleString()}
+            {" | "}${costUSD.toFixed(4)} USD / NT${costTWD.toFixed(2)}
+          </div>
+        );
+      })()}
 
       {/* Recorder */}
       <footer className="border-t bg-white">
