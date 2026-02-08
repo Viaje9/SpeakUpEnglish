@@ -1,5 +1,5 @@
 export interface ChatMessage {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "summary";
   text?: string;
   audioBase64?: string;
 }
@@ -26,5 +26,14 @@ export interface TokenUsage {
 export interface ChatResponse {
   transcript: string;
   audioBase64: string;
+  usage: TokenUsage;
+}
+
+export interface SummarizeRequest {
+  history: ChatMessage[];
+}
+
+export interface SummarizeResponse {
+  summary: string;
   usage: TokenUsage;
 }

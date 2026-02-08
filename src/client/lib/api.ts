@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatResponse, Voice } from "../../shared/types";
+import type { ChatMessage, ChatResponse, SummarizeResponse, Voice } from "../../shared/types";
 
 export async function sendChat(
   audioBase64: string,
@@ -9,6 +9,22 @@ export async function sendChat(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ audioBase64, history, voice }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export async function sendSummarize(
+  history: ChatMessage[],
+): Promise<SummarizeResponse> {
+  const res = await fetch("/api/summarize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ history }),
   });
 
   if (!res.ok) {

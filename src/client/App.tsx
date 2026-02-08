@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import type { ChatMessage as ChatMessageType, Voice, TokenUsage } from "../shared/types";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import { blobToWavBase64 } from "./lib/audioUtils";
-import { sendChat } from "./lib/api";
+import { sendChat, sendSummarize } from "./lib/api";
 import ChatMessage from "./components/ChatMessage";
 import AudioRecorder from "./components/AudioRecorder";
 import VoiceSelect from "./components/VoiceSelect";
@@ -20,6 +20,8 @@ export default function App() {
   const [voice, setVoice] = useState<Voice>("nova");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [totalUsage, setTotalUsage] = useState<TokenUsage>(EMPTY_USAGE);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
   const { toasts, show: showToast, dismiss: dismissToast } = useToast();
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const { isRecording, start, stop } = useAudioRecorder();
@@ -88,6 +90,40 @@ export default function App() {
     }
   };
 
+  const handleSummarize = async () => {
+    if (isSummarizing) return;
+    setIsSummarizing(true);
+    try {
+      // Only send user/assistant messages (not previous summaries)
+      const chatHistory = messages.filter((m) => m.role !== "summary");
+      const response = await sendSummarize(chatHistory);
+      const summaryMessage: ChatMessageType = { role: "summary", text: response.summary };
+      setMessages((prev) => [...prev, summaryMessage]);
+      setIsFinished(true);
+      setTotalUsage((prev) => ({
+        promptTokens: prev.promptTokens + response.usage.promptTokens,
+        completionTokens: prev.completionTokens + response.usage.completionTokens,
+        totalTokens: prev.totalTokens + response.usage.totalTokens,
+        promptTextTokens: prev.promptTextTokens + response.usage.promptTextTokens,
+        promptAudioTokens: prev.promptAudioTokens + response.usage.promptAudioTokens,
+        completionTextTokens: prev.completionTextTokens + response.usage.completionTextTokens,
+        completionAudioTokens: prev.completionAudioTokens + response.usage.completionAudioTokens,
+      }));
+    } catch {
+      showToast("整理失敗，請再試一次。");
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  const handleNewSession = () => {
+    setMessages([]);
+    setIsFinished(false);
+    setTotalUsage(EMPTY_USAGE);
+  };
+
+  const hasUserMessages = messages.some((m) => m.role === "user");
+
   const costUSD = (() => {
     const r = { textIn: 0.15, audioIn: 10, textOut: 0.60, audioOut: 20 };
     return (
@@ -102,6 +138,7 @@ export default function App() {
   return (
     <div className="mx-auto flex h-dvh max-w-lg flex-col bg-surface font-body">
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
       {/* Header */}
       <header className="relative shrink-0 border-b border-sage-100 bg-white px-4 pb-3 pt-4">
         <h1 className="text-center font-display text-xl font-semibold tracking-tight text-sage-500">
@@ -168,8 +205,13 @@ export default function App() {
         <AudioRecorder
           isRecording={isRecording}
           isLoading={isLoading}
+          isSummarizing={isSummarizing}
+          isFinished={isFinished}
+          hasMessages={hasUserMessages}
           onStart={handleStart}
           onStop={handleStop}
+          onSummarize={handleSummarize}
+          onNewSession={handleNewSession}
         />
       </footer>
     </div>

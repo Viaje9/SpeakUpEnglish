@@ -1,7 +1,7 @@
 import { Router } from "express";
-import type { ChatRequest, ChatResponse, Voice } from "../../shared/types.js";
+import type { ChatRequest, ChatResponse, SummarizeRequest, SummarizeResponse, Voice } from "../../shared/types.js";
 import { VOICES } from "../../shared/types.js";
-import { chat, previewVoice } from "../lib/openai.js";
+import { chat, summarize, previewVoice } from "../lib/openai.js";
 
 const router = Router();
 
@@ -20,6 +20,24 @@ router.post("/chat", async (req, res) => {
   } catch (err) {
     console.error("Chat error:", err);
     res.status(500).json({ error: "Failed to process chat request" });
+  }
+});
+
+router.post("/summarize", async (req, res) => {
+  try {
+    const { history } = req.body as SummarizeRequest;
+
+    if (!history || history.length === 0) {
+      res.status(400).json({ error: "history is required" });
+      return;
+    }
+
+    const result = await summarize(history);
+    const response: SummarizeResponse = result;
+    res.json(response);
+  } catch (err) {
+    console.error("Summarize error:", err);
+    res.status(500).json({ error: "Failed to summarize conversation" });
   }
 });
 
