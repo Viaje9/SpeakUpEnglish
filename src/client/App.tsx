@@ -26,6 +26,12 @@ const EMPTY_USAGE: TokenUsage = {
   promptTextTokens: 0, promptAudioTokens: 0, completionTextTokens: 0, completionAudioTokens: 0,
 };
 
+const FLOATING_BTN_HEIGHT = 56;
+const FLOATING_BTN_MARGIN = 12;
+const NOTE_PANEL_SIDE_GAP = 12;
+const NOTE_PANEL_HEIGHT = 320;
+const NOTE_PANEL_SAFE_BOTTOM = 136;
+
 export default function App() {
   const [page, setPage] = useState<Page>("chat");
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -48,6 +54,35 @@ export default function App() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [autoPlaySignature, setAutoPlaySignature] = useState<string | null>(null);
   const [confirmNewChatOpen, setConfirmNewChatOpen] = useState(false);
+  const [isNotePanelOpen, setIsNotePanelOpen] = useState(false);
+  const [noteText, setNoteText] = useState<string>(() => localStorage.getItem("speakup_floating_note") || "");
+  const [floatingBtnTop, setFloatingBtnTop] = useState(() => {
+    if (typeof window === "undefined") return 280;
+    return Math.max(FLOATING_BTN_MARGIN, window.innerHeight / 2 - FLOATING_BTN_HEIGHT / 2);
+  });
+  const [notePanelTop, setNotePanelTop] = useState(() => {
+    if (typeof window === "undefined") return 96;
+    const maxTop = Math.max(
+      FLOATING_BTN_MARGIN,
+      window.innerHeight - NOTE_PANEL_HEIGHT - NOTE_PANEL_SAFE_BOTTOM,
+    );
+    return Math.min(Math.max(96, FLOATING_BTN_MARGIN), maxTop);
+  });
+
+  const dragStateRef = useRef({
+    active: false,
+    pointerId: -1,
+    offsetY: 0,
+    startClientY: 0,
+  });
+  const noteDragStateRef = useRef({
+    active: false,
+    pointerId: -1,
+    offsetY: 0,
+  });
+  const floatingDraggedRef = useRef(false);
+  const notePanelRef = useRef<HTMLDivElement>(null);
+
   const { toasts, show: showToast, dismiss: dismissToast } = useToast();
   const { isRecording, start, stop, cancel } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -59,6 +94,123 @@ export default function App() {
   useEffect(() => {
     migrateFromLocalStorage();
   }, []);
+
+  useEffect(() => {
+    const clampFloatingTop = (top: number) => {
+      const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - FLOATING_BTN_HEIGHT - FLOATING_BTN_MARGIN);
+      return Math.min(Math.max(top, FLOATING_BTN_MARGIN), maxTop);
+    };
+
+    const clampNoteTop = (top: number) => {
+      const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - NOTE_PANEL_HEIGHT - NOTE_PANEL_SAFE_BOTTOM);
+      return Math.min(Math.max(top, FLOATING_BTN_MARGIN), maxTop);
+    };
+
+    const handleResize = () => {
+      setFloatingBtnTop((prev) => clampFloatingTop(prev));
+      setNotePanelTop((prev) => clampNoteTop(prev));
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  const handleFloatingPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    floatingDraggedRef.current = false;
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragStateRef.current = {
+      active: true,
+      pointerId: event.pointerId,
+      offsetY: event.clientY - rect.top,
+      startClientY: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleFloatingPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState.active || dragState.pointerId !== event.pointerId) return;
+
+    const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - FLOATING_BTN_HEIGHT - FLOATING_BTN_MARGIN);
+    const nextTop = event.clientY - dragState.offsetY;
+    if (Math.abs(event.clientY - dragState.startClientY) > 3) {
+      floatingDraggedRef.current = true;
+    }
+    setFloatingBtnTop(Math.min(Math.max(nextTop, FLOATING_BTN_MARGIN), maxTop));
+  };
+
+  const handleFloatingPointerEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const dragState = dragStateRef.current;
+    if (dragState.pointerId !== event.pointerId) return;
+
+    dragStateRef.current = {
+      active: false,
+      pointerId: -1,
+      offsetY: 0,
+      startClientY: 0,
+    };
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleFloatingButtonClick = () => {
+    if (floatingDraggedRef.current) {
+      floatingDraggedRef.current = false;
+      return;
+    }
+    setIsNotePanelOpen((prev) => !prev);
+  };
+
+  const handleNotePanelPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("textarea,button,input,a")) return;
+
+    const panelElement = notePanelRef.current;
+    if (!panelElement) return;
+
+    event.preventDefault();
+    const rect = panelElement.getBoundingClientRect();
+    noteDragStateRef.current = {
+      active: true,
+      pointerId: event.pointerId,
+      offsetY: event.clientY - rect.top,
+    };
+    panelElement.setPointerCapture(event.pointerId);
+  };
+
+  const handleNotePanelPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const dragState = noteDragStateRef.current;
+    if (!dragState.active || dragState.pointerId !== event.pointerId) return;
+
+    const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - NOTE_PANEL_HEIGHT - NOTE_PANEL_SAFE_BOTTOM);
+    const nextTop = event.clientY - dragState.offsetY;
+    setNotePanelTop(Math.min(Math.max(nextTop, FLOATING_BTN_MARGIN), maxTop));
+  };
+
+  const handleNotePanelPointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const dragState = noteDragStateRef.current;
+    if (dragState.pointerId !== event.pointerId) return;
+
+    noteDragStateRef.current = {
+      active: false,
+      pointerId: -1,
+      offsetY: 0,
+    };
+
+    if (notePanelRef.current?.hasPointerCapture(event.pointerId)) {
+      notePanelRef.current.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleNoteTextChange = (value: string) => {
+    setNoteText(value);
+    localStorage.setItem("speakup_floating_note", value);
+  };
 
   const handleSaveSettings = (
     nextVoice: Voice,
@@ -251,167 +403,230 @@ export default function App() {
   const costTWD = costUSD * 32.5;
 
   return (
-    <div className="mx-auto flex h-dvh max-w-lg flex-col bg-surface font-body">
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+    <>
+      <div className="mx-auto flex h-dvh max-w-lg flex-col bg-surface font-body">
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
-      {page === "settings" && (
-        <SettingsPage
-          voice={voice}
-          apiKey={apiKey}
-          systemPrompt={systemPrompt}
-          memory={memory}
-          autoMemoryEnabled={autoMemoryEnabled}
-          onSave={handleSaveSettings}
-          onBack={() => setPage("chat")}
-        />
-      )}
+        {page === "settings" && (
+          <SettingsPage
+            voice={voice}
+            apiKey={apiKey}
+            systemPrompt={systemPrompt}
+            memory={memory}
+            autoMemoryEnabled={autoMemoryEnabled}
+            onSave={handleSaveSettings}
+            onBack={() => setPage("chat")}
+          />
+        )}
 
-      {page === "history" && (
-        <HistoryPage
-          onBack={() => setPage("chat")}
-          onLoadConversation={handleLoadConversation}
-        />
-      )}
+        {page === "history" && (
+          <HistoryPage
+            onBack={() => setPage("chat")}
+            onLoadConversation={handleLoadConversation}
+          />
+        )}
 
-      {page === "chat" && (
-        <>
-          {/* Header */}
-          <header className="relative flex shrink-0 items-center border-b border-sage-100 bg-white px-4 py-3">
-            {/* Left: history */}
-            <button
-              onClick={() => setPage("history")}
-              className="rounded-lg p-1.5 text-sage-400 transition-colors hover:bg-sage-50 hover:text-sage-500"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
+        {page === "chat" && (
+          <>
+            {/* Header */}
+            <header className="relative flex shrink-0 items-center border-b border-sage-100 bg-white px-4 py-3">
+              {/* Left: history */}
+              <button
+                onClick={() => setPage("history")}
+                className="rounded-lg p-1.5 text-sage-400 transition-colors hover:bg-sage-50 hover:text-sage-500"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
 
-            {/* Center */}
-            <div className="flex-1 text-center">
-              <h1 className="font-display text-base font-semibold tracking-tight text-sage-500">
-                SpeakUp English
-              </h1>
-              <p className="text-[10px] tracking-wide text-sage-300">
-                AI 英語口說練習
-              </p>
-            </div>
+              {/* Center */}
+              <div className="flex-1 text-center">
+                <h1 className="font-display text-base font-semibold tracking-tight text-sage-500">
+                  SpeakUp English
+                </h1>
+                <p className="text-[10px] tracking-wide text-sage-300">
+                  AI 英語口說練習
+                </p>
+              </div>
 
-            {/* Right: settings */}
-            <button
-              onClick={() => setPage("settings")}
-              className="rounded-lg p-1.5 text-sage-400 transition-colors hover:bg-sage-50 hover:text-sage-500"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </button>
-          </header>
+              {/* Right: settings */}
+              <button
+                onClick={() => setPage("settings")}
+                className="rounded-lg p-1.5 text-sage-400 transition-colors hover:bg-sage-50 hover:text-sage-500"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </header>
 
-          {/* Chat area */}
-          <main className="flex-1 overflow-y-auto px-4 py-4">
-            {messages.length === 0 && (
-              <div className="flex h-full flex-col items-center justify-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-100">
-                  <svg className="h-10 w-10 text-brand-500" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-                    <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-                  </svg>
+            {/* Chat area */}
+            <main className="flex-1 overflow-y-auto px-4 py-4">
+              {messages.length === 0 && (
+                <div className="flex h-full flex-col items-center justify-center gap-4">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-100">
+                    <svg className="h-10 w-10 text-brand-500" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                      <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-display text-base font-semibold text-sage-500">
+                      準備好練習了嗎？
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-sage-300">
+                      點擊下方麥克風開始說話
+                      <br />
+                      AI 會用語音和文字回覆你
+                    </p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="font-display text-base font-semibold text-sage-500">
-                    準備好練習了嗎？
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-sage-300">
-                    點擊下方麥克風開始說話
-                    <br />
-                    AI 會用語音和文字回覆你
-                  </p>
-                </div>
+              )}
+              {messages.map((msg, i) => (
+                <ChatMessage
+                  key={i}
+                  message={msg}
+                  shouldAutoPlay={
+                    i === messages.length - 1 &&
+                    msg.role === "assistant" &&
+                    !!msg.audioBase64 &&
+                    msg.audioBase64 === autoPlaySignature
+                  }
+                  onAutoPlayHandled={() => setAutoPlaySignature(null)}
+                  apiKey={apiKey}
+                />
+              ))}
+              <div ref={messagesEndRef} />
+            </main>
+
+            {/* Cost bar */}
+            {totalUsage.totalTokens > 0 && (
+              <div className="shrink-0 border-t border-sage-100 bg-sage-50 px-4 py-1.5 text-center font-body text-[10px] tracking-wide text-sage-300">
+                {totalUsage.totalTokens.toLocaleString()} tokens
+                {" / "}${costUSD.toFixed(4)} USD
+                {" / "}NT${costTWD.toFixed(2)}
+                <span className="text-green-600">{" / "}+NT${lastIncreaseTWD.toFixed(2)}</span>
               </div>
             )}
-            {messages.map((msg, i) => (
-              <ChatMessage
-                key={i}
-                message={msg}
-                shouldAutoPlay={
-                  i === messages.length - 1 &&
-                  msg.role === "assistant" &&
-                  !!msg.audioBase64 &&
-                  msg.audioBase64 === autoPlaySignature
-                }
-                onAutoPlayHandled={() => setAutoPlaySignature(null)}
-                apiKey={apiKey}
+
+            {/* Recorder */}
+            <footer className="shrink-0 border-t border-sage-100 bg-white">
+              <AudioRecorder
+                isRecording={isRecording}
+                isLoading={isLoading}
+                isSummarizing={isSummarizing}
+                isFinished={isFinished}
+                hasMessages={hasUserMessages}
+                onStart={handleStart}
+                onStop={handleStop}
+                onCancel={cancel}
+                onSummarize={handleSummarize}
+                onRequestNewSession={() => setConfirmNewChatOpen(true)}
               />
-            ))}
-            <div ref={messagesEndRef} />
-          </main>
+            </footer>
+          </>
+        )}
 
-          {/* Cost bar */}
-          {totalUsage.totalTokens > 0 && (
-            <div className="shrink-0 border-t border-sage-100 bg-sage-50 px-4 py-1.5 text-center font-body text-[10px] tracking-wide text-sage-300">
-              {totalUsage.totalTokens.toLocaleString()} tokens
-              {" / "}${costUSD.toFixed(4)} USD
-              {" / "}NT${costTWD.toFixed(2)}
-              <span className="text-green-600">{" / "}+NT${lastIncreaseTWD.toFixed(2)}</span>
-            </div>
-          )}
-
-          {/* Recorder */}
-          <footer className="shrink-0 border-t border-sage-100 bg-white">
-            <AudioRecorder
-              isRecording={isRecording}
-              isLoading={isLoading}
-              isSummarizing={isSummarizing}
-              isFinished={isFinished}
-              hasMessages={hasUserMessages}
-              onStart={handleStart}
-              onStop={handleStop}
-              onCancel={cancel}
-              onSummarize={handleSummarize}
-              onRequestNewSession={() => setConfirmNewChatOpen(true)}
-            />
-          </footer>
-        </>
-      )}
-
-      {confirmNewChatOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-sage-500/35 px-5"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="new-chat-confirm-title"
-          aria-describedby="new-chat-confirm-desc"
-          onClick={() => setConfirmNewChatOpen(false)}
-        >
+        {confirmNewChatOpen && (
           <div
-            className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl shadow-sage-500/20"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-sage-500/35 px-5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-chat-confirm-title"
+            aria-describedby="new-chat-confirm-desc"
+            onClick={() => setConfirmNewChatOpen(false)}
           >
-            <p id="new-chat-confirm-title" className="font-display text-lg font-semibold text-sage-500">
-              開始新對話？
-            </p>
-            <p id="new-chat-confirm-desc" className="mt-2 text-sm leading-relaxed text-sage-400">
-              目前對話紀錄將被清除，且無法復原。
-            </p>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setConfirmNewChatOpen(false)}
-                className="rounded-xl border border-sage-100 bg-sage-50 px-3 py-2 text-sm font-medium text-sage-500 active:scale-95"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleConfirmNewSession}
-                className="rounded-xl bg-brand-500 px-3 py-2 text-sm font-medium text-white shadow-md shadow-brand-200 active:scale-95"
-              >
-                清除並開始
-              </button>
+            <div
+              className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl shadow-sage-500/20"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p id="new-chat-confirm-title" className="font-display text-lg font-semibold text-sage-500">
+                開始新對話？
+              </p>
+              <p id="new-chat-confirm-desc" className="mt-2 text-sm leading-relaxed text-sage-400">
+                目前對話紀錄將被清除，且無法復原。
+              </p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setConfirmNewChatOpen(false)}
+                  className="rounded-xl border border-sage-100 bg-sage-50 px-3 py-2 text-sm font-medium text-sage-500 active:scale-95"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleConfirmNewSession}
+                  className="rounded-xl bg-brand-500 px-3 py-2 text-sm font-medium text-white shadow-md shadow-brand-200 active:scale-95"
+                >
+                  清除並開始
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+      </div>
+
+      <div className="pointer-events-none fixed inset-0 z-50">
+        {isNotePanelOpen && (
+          <div
+            ref={notePanelRef}
+            role="dialog"
+            aria-label="筆記視窗"
+            className="pointer-events-auto fixed mx-auto flex h-80 flex-col overflow-hidden rounded-2xl border border-sage-200 bg-white shadow-xl shadow-sage-500/25"
+            style={{
+              top: `${notePanelTop}px`,
+              left: `${NOTE_PANEL_SIDE_GAP}px`,
+              right: `${NOTE_PANEL_SIDE_GAP}px`,
+              maxWidth: `calc(32rem - ${NOTE_PANEL_SIDE_GAP * 2}px)`,
+            }}
+            onPointerDown={handleNotePanelPointerDown}
+            onPointerMove={handleNotePanelPointerMove}
+            onPointerUp={handleNotePanelPointerEnd}
+            onPointerCancel={handleNotePanelPointerEnd}
+          >
+            <header className="flex cursor-grab items-center justify-between border-b border-sage-100 bg-sage-50 px-3 py-2.5 active:cursor-grabbing">
+              <p className="font-body text-sm font-medium text-sage-500">小抄筆記</p>
+              <button
+                type="button"
+                onClick={() => setIsNotePanelOpen(false)}
+                className="rounded-md p-1 text-sage-400 transition-colors hover:bg-sage-100 hover:text-sage-500"
+                aria-label="關閉筆記視窗"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </header>
+            <textarea
+              value={noteText}
+              onChange={(event) => handleNoteTextChange(event.target.value)}
+              placeholder="在這裡記錄你的口說重點、句型或提醒..."
+              className="h-full w-full resize-none bg-white px-3 py-2.5 font-body text-sm leading-relaxed text-sage-500 outline-none placeholder:text-sage-300"
+            />
+          </div>
+        )}
+      </div>
+
+      {!isNotePanelOpen && (
+        <button
+          type="button"
+          aria-label="開啟筆記視窗"
+          className="fixed right-0 z-[70] flex h-14 w-12 touch-none select-none items-center justify-center rounded-l-2xl border border-r-0 border-brand-300 bg-brand-500 text-white shadow-lg shadow-brand-400/25"
+          style={{ top: `${floatingBtnTop}px` }}
+          onClick={handleFloatingButtonClick}
+          onPointerDown={handleFloatingPointerDown}
+          onPointerMove={handleFloatingPointerMove}
+          onPointerUp={handleFloatingPointerEnd}
+          onPointerCancel={handleFloatingPointerEnd}
+        >
+          <span className="flex flex-col gap-1.5" aria-hidden="true">
+            <span className="h-1 w-1 rounded-full bg-white/90" />
+            <span className="h-1 w-1 rounded-full bg-white/90" />
+            <span className="h-1 w-1 rounded-full bg-white/90" />
+          </span>
+        </button>
       )}
-    </div>
+    </>
   );
 }
