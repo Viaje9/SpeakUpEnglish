@@ -4,7 +4,7 @@ import cors from "cors";
 import chatRouter from "./routes/chat.js";
 
 const app = express();
-const PORT = process.env.PORT ?? 3001;
+const PORT = process.env.PORT ?? 3847;
 
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
