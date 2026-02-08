@@ -1,3 +1,5 @@
+/** @deprecated Use src/client/lib/db.ts (IndexedDB) instead. Kept for migration reference. */
+
 const STORAGE_KEY = "speakup_history";
 
 export interface HistoryRecord {

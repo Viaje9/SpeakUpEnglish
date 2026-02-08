@@ -3,7 +3,7 @@ import type { ChatMessage as ChatMessageType, Voice, TokenUsage } from "../share
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import { blobToWavBase64 } from "./lib/audioUtils";
 import { sendChat, sendSummarize } from "./lib/api";
-import { saveRecord } from "./lib/history";
+import { createConversation, appendMessage, setSummary, migrateFromLocalStorage } from "./lib/db";
 import ChatMessage from "./components/ChatMessage";
 import AudioRecorder from "./components/AudioRecorder";
 import SettingsPage from "./components/SettingsPage";
@@ -28,13 +28,18 @@ export default function App() {
   const [totalUsage, setTotalUsage] = useState<TokenUsage>(EMPTY_USAGE);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const { toasts, show: showToast, dismiss: dismissToast } = useToast();
-  const { isRecording, start, stop } = useAudioRecorder();
+  const { isRecording, start, stop, cancel } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    migrateFromLocalStorage();
+  }, []);
 
   const handleChangeVoice = (v: Voice) => {
     setVoice(v);
@@ -65,6 +70,16 @@ export default function App() {
       };
       setMessages((prev) => [...prev, assistantMessage]);
       addUsage(response.usage);
+
+      // Persist to IndexedDB
+      let convId = conversationId;
+      if (!convId) {
+        convId = await createConversation();
+        setConversationId(convId);
+      }
+      const baseOrder = messages.length;
+      await appendMessage(convId, userMessage, baseOrder);
+      await appendMessage(convId, assistantMessage, baseOrder + 1);
     } catch (err) {
       console.error("Send failed:", err);
       setMessages((prev) => prev.slice(0, -1));
@@ -84,7 +99,12 @@ export default function App() {
       setMessages((prev) => [...prev, summaryMessage]);
       setIsFinished(true);
       addUsage(response.usage);
-      saveRecord(response.summary);
+
+      // Persist summary to IndexedDB
+      if (conversationId) {
+        await appendMessage(conversationId, summaryMessage, messages.length);
+        await setSummary(conversationId, response.summary);
+      }
     } catch {
       showToast("整理失敗，請再試一次。");
     } finally {
@@ -96,6 +116,15 @@ export default function App() {
     setMessages([]);
     setIsFinished(false);
     setTotalUsage(EMPTY_USAGE);
+    setConversationId(null);
+  };
+
+  const handleLoadConversation = (convId: string, msgs: ChatMessageType[]) => {
+    setConversationId(convId);
+    setMessages(msgs);
+    setIsFinished(msgs.some((m) => m.role === "summary"));
+    setTotalUsage(EMPTY_USAGE);
+    setPage("chat");
   };
 
   const addUsage = (usage: TokenUsage) => {
@@ -136,7 +165,10 @@ export default function App() {
       )}
 
       {page === "history" && (
-        <HistoryPage onBack={() => setPage("chat")} />
+        <HistoryPage
+          onBack={() => setPage("chat")}
+          onLoadConversation={handleLoadConversation}
+        />
       )}
 
       {page === "chat" && (
@@ -226,6 +258,7 @@ export default function App() {
               hasMessages={hasUserMessages}
               onStart={handleStart}
               onStop={handleStop}
+              onCancel={cancel}
               onSummarize={handleSummarize}
               onNewSession={handleNewSession}
             />

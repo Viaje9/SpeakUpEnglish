@@ -53,5 +53,26 @@ export function useAudioRecorder() {
     });
   }, []);
 
-  return { isRecording, start, stop };
+  const cancel = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) return;
+
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // Discard chunks and suppress onstop handler
+    chunksRef.current = [];
+    recorder.onstop = () => {
+      recorder.stream.getTracks().forEach((t) => t.stop());
+      setIsRecording(false);
+    };
+
+    if (recorder.state === "recording") {
+      recorder.stop();
+    }
+  }, []);
+
+  return { isRecording, start, stop, cancel };
 }

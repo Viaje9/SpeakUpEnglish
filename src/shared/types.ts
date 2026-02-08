@@ -37,3 +37,20 @@ export interface SummarizeResponse {
   summary: string;
   usage: TokenUsage;
 }
+
+export interface Conversation {
+  id: string;
+  timestamp: number;
+  updatedAt: number;
+  summary: string | null;
+  messageCount: number;
+}
+
+export interface StoredMessage {
+  id: string;
+  conversationId: string;
+  order: number;
+  role: "user" | "assistant" | "summary";
+  text?: string;
+  audioBase64?: string;
+}

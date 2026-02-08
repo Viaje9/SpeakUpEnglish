@@ -6,6 +6,7 @@ interface AudioRecorderProps {
   hasMessages: boolean;
   onStart: () => void;
   onStop: () => void;
+  onCancel: () => void;
   onSummarize: () => void;
   onNewSession: () => void;
 }
@@ -18,6 +19,7 @@ export default function AudioRecorder({
   hasMessages,
   onStart,
   onStop,
+  onCancel,
   onSummarize,
   onNewSession,
 }: AudioRecorderProps) {
@@ -53,8 +55,23 @@ export default function AudioRecorder({
   }
 
   return (
-    <div className="flex items-center justify-center gap-5 py-4">
-      {/* Mic button */}
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center py-4">
+      {/* Left slot — cancel button while recording */}
+      <div className="flex justify-end pr-5">
+        {isRecording && (
+          <button
+            onClick={onCancel}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 transition-all hover:border-red-200 hover:text-red-500 active:scale-90"
+            title="取消錄音"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Mic button — always centered */}
       <button
         onClick={isRecording ? onStop : onStart}
         className={`relative flex h-[68px] w-[68px] items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
@@ -75,18 +92,20 @@ export default function AudioRecorder({
         )}
       </button>
 
-      {/* Summarize button */}
-      {hasMessages && !isRecording && (
-        <button
-          onClick={onSummarize}
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 transition-all hover:border-brand-200 hover:text-brand-500 active:scale-90"
-          title="整理對話"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        </button>
-      )}
+      {/* Right slot — summarize button */}
+      <div className="flex justify-start pl-5">
+        {hasMessages && !isRecording && (
+          <button
+            onClick={onSummarize}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 transition-all hover:border-brand-200 hover:text-brand-500 active:scale-90"
+            title="整理對話"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </button>
+        )}
+      </div>
     </div>
   );
 }

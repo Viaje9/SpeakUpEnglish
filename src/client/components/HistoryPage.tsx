@@ -1,17 +1,50 @@
-import { useState } from "react";
-import { loadHistory, deleteRecord, type HistoryRecord } from "../lib/history";
+import { useState, useEffect } from "react";
+import type { ChatMessage as ChatMessageType, Conversation } from "../../shared/types";
+import { listConversations, loadMessages, deleteConversation } from "../lib/db";
+import ChatMessage from "./ChatMessage";
 
 interface Props {
   onBack: () => void;
+  onLoadConversation: (convId: string, msgs: ChatMessageType[]) => void;
 }
 
-export default function HistoryPage({ onBack }: Props) {
-  const [records, setRecords] = useState<HistoryRecord[]>(loadHistory);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+export default function HistoryPage({ onBack, onLoadConversation }: Props) {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleDelete = (id: string) => {
-    deleteRecord(id);
-    setRecords((prev) => prev.filter((r) => r.id !== id));
+  // Detail view state
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
+  const [detailMessages, setDetailMessages] = useState<ChatMessageType[]>([]);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  useEffect(() => {
+    listConversations()
+      .then(setConversations)
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    await deleteConversation(id);
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const handleSelect = async (convId: string) => {
+    setSelectedConvId(convId);
+    setIsLoadingDetail(true);
+    const msgs = await loadMessages(convId);
+    setDetailMessages(msgs);
+    setIsLoadingDetail(false);
+  };
+
+  const handleBackToList = () => {
+    setSelectedConvId(null);
+    setDetailMessages([]);
+  };
+
+  const handleContinue = () => {
+    if (selectedConvId) {
+      onLoadConversation(selectedConvId, detailMessages);
+    }
   };
 
   const formatDate = (ts: number) => {
@@ -24,9 +57,69 @@ export default function HistoryPage({ onBack }: Props) {
     });
   };
 
+  // Detail view
+  if (selectedConvId) {
+    const conv = conversations.find((c) => c.id === selectedConvId);
+    return (
+      <div className="flex h-full flex-col">
+        <header className="flex shrink-0 items-center border-b border-sage-100 bg-white px-4 py-3">
+          <button
+            onClick={handleBackToList}
+            className="rounded-lg p-1.5 text-sage-400 transition-colors hover:bg-sage-50 hover:text-sage-500"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h2 className="flex-1 text-center font-display text-base font-semibold text-sage-500">
+            對話詳情
+          </h2>
+          <div className="w-8" />
+        </header>
+
+        <main className="flex-1 overflow-y-auto px-4 py-4">
+          {isLoadingDetail ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-sage-200 border-t-brand-500" />
+            </div>
+          ) : detailMessages.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              {conv?.summary && (
+                <div className="w-full rounded-xl bg-white p-4 ring-1 ring-sage-100">
+                  <p className="mb-2 font-body text-xs font-medium text-sage-400">整理摘要</p>
+                  <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-gray-700">
+                    {conv.summary}
+                  </p>
+                </div>
+              )}
+              {!conv?.summary && (
+                <p className="text-sm text-sage-300">此對話沒有完整訊息記錄</p>
+              )}
+            </div>
+          ) : (
+            detailMessages.map((msg, i) => (
+              <ChatMessage key={i} message={msg} isLatest={i === detailMessages.length - 1} />
+            ))
+          )}
+        </main>
+
+        {detailMessages.length > 0 && !detailMessages.some((m) => m.role === "summary") && (
+          <footer className="shrink-0 border-t border-sage-100 bg-white px-4 py-3">
+            <button
+              onClick={handleContinue}
+              className="w-full rounded-xl bg-brand-500 py-2.5 font-body text-sm font-medium text-white transition-colors hover:bg-brand-600"
+            >
+              繼續對話
+            </button>
+          </footer>
+        )}
+      </div>
+    );
+  }
+
+  // List view
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
       <header className="flex shrink-0 items-center border-b border-sage-100 bg-white px-4 py-3">
         <button
           onClick={onBack}
@@ -42,9 +135,12 @@ export default function HistoryPage({ onBack }: Props) {
         <div className="w-8" />
       </header>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {records.length === 0 ? (
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-sage-200 border-t-brand-500" />
+          </div>
+        ) : conversations.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sage-50">
               <svg className="h-8 w-8 text-sage-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -52,36 +148,36 @@ export default function HistoryPage({ onBack }: Props) {
               </svg>
             </div>
             <p className="text-sm text-sage-300">還沒有聊天記錄</p>
-            <p className="text-xs text-sage-200">完成對話並整理後會顯示在這裡</p>
+            <p className="text-xs text-sage-200">完成對話後會顯示在這裡</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {records.map((r) => {
-              const isExpanded = expandedId === r.id;
-              const preview = r.summary.length > 80 ? r.summary.slice(0, 80) + "..." : r.summary;
+            {conversations.map((c) => {
+              const preview = c.summary
+                ? c.summary.length > 80
+                  ? c.summary.slice(0, 80) + "..."
+                  : c.summary
+                : "對話進行中...";
 
               return (
-                <div
-                  key={r.id}
-                  className="animate-fade-up rounded-xl bg-white p-4 ring-1 ring-sage-100 transition-shadow hover:shadow-sm"
+                <button
+                  key={c.id}
+                  onClick={() => handleSelect(c.id)}
+                  className="w-full animate-fade-up rounded-xl bg-white p-4 text-left ring-1 ring-sage-100 transition-shadow hover:shadow-sm"
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <span className="font-body text-[11px] text-sage-300">
-                      {formatDate(r.timestamp)}
+                      {formatDate(c.timestamp)}
                     </span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-sage-50 px-2 py-0.5 font-body text-[10px] text-sage-400">
+                        {c.messageCount} 則訊息
+                      </span>
                       <button
-                        onClick={() => navigator.clipboard.writeText(r.summary)}
-                        className="rounded-md p-1 text-sage-300 transition-colors hover:bg-sage-50 hover:text-sage-500"
-                        title="複製"
-                      >
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(r.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(c.id);
+                        }}
                         className="rounded-md p-1 text-sage-300 transition-colors hover:bg-red-50 hover:text-red-500"
                         title="刪除"
                       >
@@ -91,20 +187,10 @@ export default function HistoryPage({ onBack }: Props) {
                       </button>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : r.id)}
-                    className="w-full text-left"
-                  >
-                    <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-gray-700">
-                      {isExpanded ? r.summary : preview}
-                    </p>
-                    {r.summary.length > 80 && (
-                      <span className="mt-1 inline-block font-body text-xs text-brand-500">
-                        {isExpanded ? "收合" : "展開全文"}
-                      </span>
-                    )}
-                  </button>
-                </div>
+                  <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-gray-700">
+                    {preview}
+                  </p>
+                </button>
               );
             })}
           </div>
