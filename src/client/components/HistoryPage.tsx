@@ -11,6 +11,7 @@ interface Props {
 export default function HistoryPage({ onBack, onLoadConversation }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // Detail view state
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
@@ -24,10 +25,14 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
   }, []);
 
   const handleDelete = async (id: string) => {
-    const confirmed = window.confirm("刪除聊天記錄時，會把歷史記錄一併刪除。確定要刪除嗎？");
-    if (!confirmed) return;
     await deleteConversation(id);
     setConversations((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return;
+    await handleDelete(pendingDeleteId);
+    setPendingDeleteId(null);
   };
 
   const handleSelect = async (convId: string) => {
@@ -188,7 +193,7 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(c.id);
+                          setPendingDeleteId(c.id);
                         }}
                         className="rounded-md p-1 text-sage-300 transition-colors hover:bg-red-50 hover:text-red-500"
                         title="刪除"
@@ -208,6 +213,33 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
           </div>
         )}
       </div>
+
+      {pendingDeleteId && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl ring-1 ring-sage-100">
+            <h3 className="font-display text-base font-semibold text-sage-500">確認刪除</h3>
+            <p className="mt-2 font-body text-sm leading-relaxed text-sage-400">
+              刪除聊天記錄時，會把歷史記錄一併刪除。
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteId(null)}
+                className="rounded-lg px-3 py-2 font-body text-sm text-sage-400 transition-colors hover:bg-sage-50 hover:text-sage-500"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="rounded-lg bg-red-500 px-3 py-2 font-body text-sm text-white transition-colors hover:bg-red-600"
+              >
+                刪除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
