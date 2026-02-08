@@ -1,0 +1,56 @@
+import OpenAI from "openai";
+import type { ChatMessage } from "../../shared/types.js";
+
+let _client: OpenAI | null = null;
+function getClient() {
+  if (!_client) _client = new OpenAI();
+  return _client;
+}
+
+const SYSTEM_PROMPT = `You are a friendly and patient English conversation partner. Your job is to help the user practice speaking English.
+
+Guidelines:
+- Respond naturally, as if having a real conversation
+- Keep responses concise (1-3 sentences) to encourage the user to speak more
+- If the user makes grammar or pronunciation mistakes, gently correct them and then continue the conversation
+- Adjust your language level to match the user's proficiency
+- Be encouraging and supportive
+- Ask follow-up questions to keep the conversation going`;
+
+export async function chat(
+  audioBase64: string,
+  history: ChatMessage[],
+): Promise<{ transcript: string; audioBase64: string }> {
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+  ];
+
+  for (const msg of history) {
+    if (msg.role === "assistant" && msg.text) {
+      messages.push({ role: "assistant", content: msg.text });
+    }
+  }
+
+  messages.push({
+    role: "user",
+    content: [
+      {
+        type: "input_audio",
+        input_audio: { data: audioBase64, format: "wav" },
+      },
+    ],
+  });
+
+  const response = await getClient().chat.completions.create({
+    model: "gpt-4o-mini-audio-preview",
+    modalities: ["text", "audio"],
+    audio: { voice: "alloy", format: "wav" },
+    messages,
+  });
+
+  const choice = response.choices[0];
+  const transcript = choice.message.audio?.transcript ?? choice.message.content ?? "";
+  const responseAudio = choice.message.audio?.data ?? "";
+
+  return { transcript, audioBase64: responseAudio };
+}
