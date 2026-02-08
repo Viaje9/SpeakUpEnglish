@@ -6,6 +6,8 @@ import { sendChat } from "./lib/api";
 import ChatMessage from "./components/ChatMessage";
 import AudioRecorder from "./components/AudioRecorder";
 import VoiceSelect from "./components/VoiceSelect";
+import ToastContainer from "./components/ToastContainer";
+import { useToast } from "./hooks/useToast";
 
 const EMPTY_USAGE: TokenUsage = {
   promptTokens: 0, completionTokens: 0, totalTokens: 0,
@@ -18,6 +20,7 @@ export default function App() {
   const [voice, setVoice] = useState<Voice>("nova");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [totalUsage, setTotalUsage] = useState<TokenUsage>(EMPTY_USAGE);
+  const { toasts, show: showToast, dismiss: dismissToast } = useToast();
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const { isRecording, start, stop } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -38,7 +41,7 @@ export default function App() {
       previewAudioRef.current = audio;
       await audio.play();
     } catch {
-      alert("語音試聽失敗，請稍後再試。");
+      showToast("語音試聽失敗，請稍後再試。");
     } finally {
       setIsPreviewing(false);
     }
@@ -48,7 +51,7 @@ export default function App() {
     try {
       await start();
     } catch {
-      alert("無法存取麥克風，請允許麥克風權限。");
+      showToast("無法存取麥克風，請允許麥克風權限。");
     }
   };
 
@@ -79,7 +82,7 @@ export default function App() {
     } catch (err) {
       console.error("Send failed:", err);
       setMessages((prev) => prev.slice(0, -1));
-      alert("訊息傳送失敗，請再試一次。");
+      showToast("訊息傳送失敗，請再試一次。");
     } finally {
       setIsLoading(false);
     }
@@ -98,6 +101,7 @@ export default function App() {
 
   return (
     <div className="mx-auto flex h-dvh max-w-lg flex-col bg-surface font-body">
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       {/* Header */}
       <header className="relative shrink-0 border-b border-sage-100 bg-white px-4 pb-3 pt-4">
         <h1 className="text-center font-display text-xl font-semibold tracking-tight text-sage-500">
