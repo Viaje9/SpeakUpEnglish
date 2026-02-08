@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChatMessage as ChatMessageType } from "../../shared/types";
 import { sendTranslate } from "../lib/api";
 import AudioPlayer from "./AudioPlayer";
@@ -12,6 +12,8 @@ interface Props {
 export default function ChatMessage({ message, isLatest, apiKey }: Props) {
   const isUser = message.role === "user";
   const isSummary = message.role === "summary";
+  const [isAiPlaying, setIsAiPlaying] = useState(false);
+  const aiAudioRef = useRef<HTMLAudioElement>(null);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [showTranslated, setShowTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -31,6 +33,42 @@ export default function ChatMessage({ message, isLatest, apiKey }: Props) {
       setTimeout(() => setCopyFailed(false), 1500);
     }
   };
+
+  const toggleAiAudio = () => {
+    const audio = aiAudioRef.current;
+    if (!audio || !message.audioBase64) return;
+    if (!audio.paused) {
+      audio.pause();
+      return;
+    }
+    if (audio.ended || (audio.duration && audio.currentTime >= audio.duration - 0.05)) {
+      audio.currentTime = 0;
+    }
+    audio.play().catch(() => {});
+  };
+
+  useEffect(() => {
+    if (isUser || !message.audioBase64 || !aiAudioRef.current) return;
+    const audio = aiAudioRef.current;
+    const onEnded = () => setIsAiPlaying(false);
+    const onPlay = () => setIsAiPlaying(true);
+    const onPause = () => setIsAiPlaying(false);
+
+    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onPause);
+
+    if (isLatest) {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    }
+
+    return () => {
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onPause);
+    };
+  }, [isUser, isLatest, message.audioBase64]);
 
   if (isSummary) {
     return (
@@ -65,20 +103,83 @@ export default function ChatMessage({ message, isLatest, apiKey }: Props) {
     >
       {/* AI avatar */}
       {!isUser && (
-        <div className="mr-2 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm">
-          AI
+        <div className="mr-2 mt-1 flex shrink-0">
+          <div
+            className={`relative flex h-8 w-8 items-center justify-center rounded-full border border-brand-200 text-sm font-semibold shadow-sm ${
+              isAiPlaying
+                ? "bg-brand-200 text-brand-700"
+                : "bg-brand-100 text-brand-700"
+            }`}
+            onClick={toggleAiAudio}
+            role={message.audioBase64 ? "button" : undefined}
+            tabIndex={message.audioBase64 ? 0 : undefined}
+            onKeyDown={(e) => {
+              if (!message.audioBase64) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleAiAudio();
+              }
+            }}
+          >
+            {isAiPlaying && (
+              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
+                <div className="avatar-liquid-top" />
+                <div className="avatar-liquid-bottom" />
+              </div>
+            )}
+            <span className="relative z-10">AI</span>
+            {message.audioBase64 && (
+              <audio
+                ref={aiAudioRef}
+                src={`data:audio/wav;base64,${message.audioBase64}`}
+                preload="metadata"
+                className="hidden"
+              />
+            )}
+          </div>
         </div>
       )}
 
       <div
-        className={`flex max-w-[78%] items-center gap-3 rounded-2xl px-4 py-2.5 shadow-sm ${
+        className={`relative flex max-w-[78%] items-center gap-3 rounded-2xl px-4 py-2.5 shadow-sm ${
           isUser
             ? "rounded-br-md bg-brand-500 text-white"
             : "rounded-bl-md bg-white text-sage-500 ring-1 ring-sage-100"
         }`}
       >
+        {!isUser && message.text && (
+          <button
+            disabled={isTranslating}
+            onClick={async () => {
+              if (showTranslated) {
+                setShowTranslated(false);
+                return;
+              }
+
+              if (translatedText) {
+                setShowTranslated(true);
+                return;
+              }
+
+              try {
+                setIsTranslating(true);
+                const result = await sendTranslate(message.text, apiKey);
+                setTranslatedText(result.translatedText || message.text);
+                setShowTranslated(true);
+              } catch (err) {
+                console.error("Translate failed:", err);
+              } finally {
+                setIsTranslating(false);
+              }
+            }}
+            className="absolute right-2 top-2 rounded-full bg-sage-50 px-4 py-1.5 text-sm font-semibold text-sage-600 shadow-sm ring-1 ring-sage-200 transition-colors hover:bg-sage-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isTranslating ? "翻譯中..." : showTranslated ? "原文" : "翻譯"}
+          </button>
+        )}
+
         {/* 左側內容 */}
-        <div className="min-w-0 flex-1">
+        <div className={`min-w-0 flex-1 ${!isUser && message.text ? "pt-10" : ""}`}>
           {isUser && (
             <p className="flex items-center gap-1.5 text-xs font-medium text-white/80">
               <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -98,43 +199,6 @@ export default function ChatMessage({ message, isLatest, apiKey }: Props) {
         {/* 右側播放按鈕 */}
         {isUser && message.audioBase64 && (
           <AudioPlayer base64={message.audioBase64} autoPlay={false} variant="user" />
-        )}
-        {!isUser && (
-          <div className="flex shrink-0 flex-col items-center gap-1.5">
-            {message.text && (
-              <button
-                disabled={isTranslating}
-                onClick={async () => {
-                  if (showTranslated) {
-                    setShowTranslated(false);
-                    return;
-                  }
-
-                  if (translatedText) {
-                    setShowTranslated(true);
-                    return;
-                  }
-
-                  try {
-                    setIsTranslating(true);
-                    const result = await sendTranslate(message.text, apiKey);
-                    setTranslatedText(result.translatedText || message.text);
-                    setShowTranslated(true);
-                  } catch (err) {
-                    console.error("Translate failed:", err);
-                  } finally {
-                    setIsTranslating(false);
-                  }
-                }}
-                className="rounded-full bg-sage-50 px-2.5 py-1 text-xs font-medium text-sage-500 transition-colors hover:bg-sage-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isTranslating ? "翻譯中..." : showTranslated ? "原文" : "翻譯"}
-              </button>
-            )}
-            {message.audioBase64 && (
-              <AudioPlayer base64={message.audioBase64} autoPlay={isLatest} variant="ai" />
-            )}
-          </div>
         )}
       </div>
     </div>

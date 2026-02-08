@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { ChatMessage, Voice, TokenUsage } from "../../shared/types.js";
+import { DEFAULT_SYSTEM_PROMPT } from "../../shared/types.js";
 
 let _client: OpenAI | null = null;
 function getClient(apiKey?: string) {
@@ -9,24 +10,57 @@ function getClient(apiKey?: string) {
   return _client;
 }
 
-const SYSTEM_PROMPT = `You are a friendly and patient English conversation partner. Your job is to help the user practice speaking English.
+function buildSystemPrompt(systemPrompt?: string, memory?: string): string {
+  const basePrompt = systemPrompt?.trim() || DEFAULT_SYSTEM_PROMPT;
+  const trimmedMemory = memory?.trim();
+  if (!trimmedMemory) return basePrompt;
 
-Guidelines:
-- Respond naturally, as if having a real conversation
-- Keep responses concise (1-3 sentences) to encourage the user to speak more
-- If the user makes grammar or pronunciation mistakes, gently correct them and then continue the conversation
-- Adjust your language level to match the user's proficiency
-- Be encouraging and supportive
-- Ask follow-up questions to keep the conversation going`;
+  return `${basePrompt}
+
+Long-term memory about this user:
+${trimmedMemory}`;
+}
+
+const UPDATE_MEMORY_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "update_memory",
+    description:
+      "Update long-term memory only when stable user preferences, goals, or level information should be remembered.",
+    parameters: {
+      type: "object",
+      properties: {
+        memory: {
+          type: "string",
+          description: "Full replacement memory text. Keep concise, factual, and under 1200 characters.",
+        },
+        reason: {
+          type: "string",
+          description: "Why this memory should be updated.",
+        },
+      },
+      required: ["memory"],
+      additionalProperties: false,
+    },
+  },
+};
 
 export async function chat(
   audioBase64: string,
   history: ChatMessage[],
   voice: Voice = "alloy",
+  systemPrompt?: string,
+  memory?: string,
+  autoMemoryEnabled = false,
   apiKey?: string,
-): Promise<{ transcript: string; audioBase64: string; usage: TokenUsage }> {
+): Promise<{
+  transcript: string;
+  audioBase64: string;
+  usage: TokenUsage;
+  memoryUpdate?: { memory: string; reason?: string };
+}> {
   const messages: OpenAI.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: buildSystemPrompt(systemPrompt, memory) },
   ];
 
   for (const msg of history) {
@@ -50,6 +84,7 @@ export async function chat(
     modalities: ["text", "audio"],
     audio: { voice, format: "wav" },
     messages,
+    tools: autoMemoryEnabled ? [UPDATE_MEMORY_TOOL] : undefined,
   });
 
   const choice = response.choices[0];
@@ -69,7 +104,24 @@ export async function chat(
     completionAudioTokens: completionDetails?.audio_tokens ?? 0,
   };
 
-  return { transcript, audioBase64: responseAudio, usage };
+  let memoryUpdate: { memory: string; reason?: string } | undefined;
+  const toolCalls = choice.message.tool_calls ?? [];
+  for (const call of toolCalls) {
+    if (call.type !== "function" || call.function.name !== "update_memory") continue;
+    try {
+      const parsed = JSON.parse(call.function.arguments) as { memory?: string; reason?: string };
+      const nextMemory = parsed.memory?.trim();
+      if (!nextMemory) continue;
+      memoryUpdate = {
+        memory: nextMemory.slice(0, 1200),
+        reason: parsed.reason?.trim(),
+      };
+    } catch {
+      // ignore malformed tool arguments
+    }
+  }
+
+  return { transcript, audioBase64: responseAudio, usage, memoryUpdate };
 }
 
 const SUMMARIZE_PROMPT = `Based on the conversation above, summarize everything the USER said in first person.
@@ -84,7 +136,7 @@ export async function summarize(
   apiKey?: string,
 ): Promise<{ summary: string; usage: TokenUsage }> {
   const messages: OpenAI.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: DEFAULT_SYSTEM_PROMPT },
   ];
 
   for (const msg of history) {

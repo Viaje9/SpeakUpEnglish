@@ -6,13 +6,25 @@ import { sendVoicePreview } from "../lib/api";
 interface Props {
   voice: Voice;
   apiKey: string;
-  onSave: (voice: Voice, apiKey: string) => void;
+  systemPrompt: string;
+  memory: string;
+  autoMemoryEnabled: boolean;
+  onSave: (
+    voice: Voice,
+    apiKey: string,
+    systemPrompt: string,
+    memory: string,
+    autoMemoryEnabled: boolean,
+  ) => void;
   onBack: () => void;
 }
 
 export default function SettingsPage({
   voice,
   apiKey,
+  systemPrompt,
+  memory,
+  autoMemoryEnabled,
   onSave,
   onBack,
 }: Props) {
@@ -21,8 +33,16 @@ export default function SettingsPage({
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [draftVoice, setDraftVoice] = useState<Voice>(voice);
   const [draftApiKey, setDraftApiKey] = useState(apiKey);
+  const [draftSystemPrompt, setDraftSystemPrompt] = useState(systemPrompt);
+  const [draftMemory, setDraftMemory] = useState(memory);
+  const [draftAutoMemoryEnabled, setDraftAutoMemoryEnabled] = useState(autoMemoryEnabled);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const isDirty = draftVoice !== voice || draftApiKey !== apiKey;
+  const isDirty =
+    draftVoice !== voice ||
+    draftApiKey !== apiKey ||
+    draftSystemPrompt !== systemPrompt ||
+    draftMemory !== memory ||
+    draftAutoMemoryEnabled !== autoMemoryEnabled;
 
   const handleBack = () => {
     if (!isDirty) {
@@ -64,7 +84,15 @@ export default function SettingsPage({
           設定
         </h2>
         <button
-          onClick={() => onSave(draftVoice, draftApiKey)}
+          onClick={() =>
+            onSave(
+              draftVoice,
+              draftApiKey,
+              draftSystemPrompt,
+              draftMemory,
+              draftAutoMemoryEnabled,
+            )
+          }
           disabled={!isDirty}
           className="rounded-lg bg-brand-500 px-3 py-1.5 font-body text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:bg-sage-200"
         >
@@ -110,6 +138,47 @@ export default function SettingsPage({
           </div>
           <p className="mt-2 text-[11px] text-sage-300">
             會儲存在此裝置的 localStorage，送出請求時使用這組金鑰。
+          </p>
+        </section>
+
+        <section className="rounded-2xl bg-white p-4 ring-1 ring-sage-100">
+          <p className="mb-2 font-body text-xs font-medium tracking-wide text-sage-400">
+            System Prompt
+          </p>
+          <textarea
+            value={draftSystemPrompt}
+            onChange={(e) => setDraftSystemPrompt(e.target.value)}
+            rows={8}
+            className="w-full rounded-lg border border-sage-200 bg-sage-50 px-3 py-2 font-body text-sm text-sage-500 outline-none transition-colors focus:border-brand-300 focus:bg-white"
+          />
+          <p className="mt-2 text-[11px] text-sage-300">
+            每次聊天都會套用這段系統提示詞。
+          </p>
+        </section>
+
+        <section className="rounded-2xl bg-white p-4 ring-1 ring-sage-100">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="font-body text-xs font-medium tracking-wide text-sage-400">
+              Memory
+            </p>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={draftAutoMemoryEnabled}
+                onChange={(e) => setDraftAutoMemoryEnabled(e.target.checked)}
+                className="h-4 w-4 accent-brand-500"
+              />
+              <span className="font-body text-xs text-sage-400">自動記憶</span>
+            </label>
+          </div>
+          <textarea
+            value={draftMemory}
+            onChange={(e) => setDraftMemory(e.target.value)}
+            rows={6}
+            className="w-full rounded-lg border border-sage-200 bg-sage-50 px-3 py-2 font-body text-sm text-sage-500 outline-none transition-colors focus:border-brand-300 focus:bg-white"
+          />
+          <p className="mt-2 text-[11px] text-sage-300">
+            可手動編輯；開啟自動記憶時，AI 會嘗試更新這段內容。
           </p>
         </section>
       </div>

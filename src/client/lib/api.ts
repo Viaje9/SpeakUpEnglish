@@ -10,12 +10,23 @@ export async function sendChat(
   audioBase64: string,
   history: ChatMessage[],
   voice: Voice,
+  systemPrompt: string,
+  memory: string,
+  autoMemoryEnabled: boolean,
   apiKey?: string,
 ): Promise<ChatResponse> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ audioBase64, history, voice, apiKey }),
+    body: JSON.stringify({
+      audioBase64,
+      history,
+      voice,
+      systemPrompt,
+      memory,
+      autoMemoryEnabled,
+      apiKey,
+    }),
   });
 
   if (!res.ok) {

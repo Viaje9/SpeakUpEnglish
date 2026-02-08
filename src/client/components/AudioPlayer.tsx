@@ -4,9 +4,19 @@ interface AudioPlayerProps {
   base64: string;
   autoPlay?: boolean;
   variant?: "user" | "ai";
+  onPlayingChange?: (playing: boolean) => void;
+  className?: string;
+  size?: "default" | "compact";
 }
 
-export default function AudioPlayer({ base64, autoPlay = true, variant = "ai" }: AudioPlayerProps) {
+export default function AudioPlayer({
+  base64,
+  autoPlay = true,
+  variant = "ai",
+  onPlayingChange,
+  className = "",
+  size = "default",
+}: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
 
@@ -35,6 +45,10 @@ export default function AudioPlayer({ base64, autoPlay = true, variant = "ai" }:
     }
   }, [base64, autoPlay]);
 
+  useEffect(() => {
+    onPlayingChange?.(playing);
+  }, [playing, onPlayingChange]);
+
   const toggle = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -48,25 +62,26 @@ export default function AudioPlayer({ base64, autoPlay = true, variant = "ai" }:
 
   const isUser = variant === "user";
   const src = `data:audio/wav;base64,${base64}`;
+  const isCompact = size === "compact";
 
   return (
     <>
       <audio ref={audioRef} src={src} preload="metadata" />
       <button
         onClick={toggle}
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+        className={`flex shrink-0 items-center justify-center rounded-full transition-colors ${
           isUser
             ? "bg-white/20 text-white hover:bg-white/30"
             : "bg-brand-100 text-brand-600 hover:bg-brand-200"
-        }`}
+        } ${isCompact ? "h-5 w-5" : "h-8 w-8"} ${className}`}
       >
         {playing ? (
-          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+          <svg className={isCompact ? "h-2.5 w-2.5" : "h-4 w-4"} fill="currentColor" viewBox="0 0 24 24">
             <rect x="6" y="4" width="4" height="16" rx="1" />
             <rect x="14" y="4" width="4" height="16" rx="1" />
           </svg>
         ) : (
-          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+          <svg className={isCompact ? "h-2.5 w-2.5" : "h-4 w-4"} fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z" />
           </svg>
         )}

@@ -18,7 +18,7 @@ const hasValidApiKey = (apiKey?: string) => Boolean(apiKey?.trim() || hasServerA
 
 router.post("/chat", async (req, res) => {
   try {
-    const { audioBase64, history, voice } = req.body as ChatRequest;
+    const { audioBase64, history, voice, systemPrompt, memory, autoMemoryEnabled } = req.body as ChatRequest;
     const { apiKey } = req.body as ChatRequest;
 
     if (!audioBase64) {
@@ -30,7 +30,15 @@ router.post("/chat", async (req, res) => {
       return;
     }
 
-    const result = await chat(audioBase64, history ?? [], voice ?? "alloy", apiKey);
+    const result = await chat(
+      audioBase64,
+      history ?? [],
+      voice ?? "alloy",
+      systemPrompt,
+      memory,
+      autoMemoryEnabled,
+      apiKey,
+    );
     const response: ChatResponse = result;
     res.json(response);
   } catch (err) {

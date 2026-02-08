@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { ChatMessage as ChatMessageType, Voice, TokenUsage } from "../shared/types";
+import { DEFAULT_SYSTEM_PROMPT } from "../shared/types";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import { RecorderStartError } from "./hooks/useAudioRecorder";
 import { blobToWavBase64 } from "./lib/audioUtils";
@@ -27,6 +28,13 @@ export default function App() {
     return (localStorage.getItem("speakup_voice") as Voice) || "nova";
   });
   const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem("speakup_openai_api_key") || "");
+  const [systemPrompt, setSystemPrompt] = useState<string>(() => {
+    return localStorage.getItem("speakup_system_prompt") || DEFAULT_SYSTEM_PROMPT;
+  });
+  const [memory, setMemory] = useState<string>(() => localStorage.getItem("speakup_memory") || "");
+  const [autoMemoryEnabled, setAutoMemoryEnabled] = useState<boolean>(() => {
+    return localStorage.getItem("speakup_auto_memory_enabled") === "1";
+  });
   const [totalUsage, setTotalUsage] = useState<TokenUsage>(EMPTY_USAGE);
   const [lastIncreaseTWD, setLastIncreaseTWD] = useState(0);
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -44,12 +52,26 @@ export default function App() {
     migrateFromLocalStorage();
   }, []);
 
-  const handleSaveSettings = (nextVoice: Voice, nextApiKey: string) => {
+  const handleSaveSettings = (
+    nextVoice: Voice,
+    nextApiKey: string,
+    nextSystemPrompt: string,
+    nextMemory: string,
+    nextAutoMemoryEnabled: boolean,
+  ) => {
     const normalizedKey = nextApiKey.trim();
+    const normalizedSystemPrompt = nextSystemPrompt.trim() || DEFAULT_SYSTEM_PROMPT;
+    const normalizedMemory = nextMemory.trim();
     setVoice(nextVoice);
     setApiKey(normalizedKey);
+    setSystemPrompt(normalizedSystemPrompt);
+    setMemory(normalizedMemory);
+    setAutoMemoryEnabled(nextAutoMemoryEnabled);
     localStorage.setItem("speakup_voice", nextVoice);
     localStorage.setItem("speakup_openai_api_key", normalizedKey);
+    localStorage.setItem("speakup_system_prompt", normalizedSystemPrompt);
+    localStorage.setItem("speakup_memory", normalizedMemory);
+    localStorage.setItem("speakup_auto_memory_enabled", nextAutoMemoryEnabled ? "1" : "0");
     showToast("設定已儲存");
     setPage("chat");
   };
@@ -96,13 +118,25 @@ export default function App() {
       const audioBase64 = await blobToWavBase64(blob);
       const userMessage: ChatMessageType = { role: "user", audioBase64 };
       setMessages((prev) => [...prev, userMessage]);
-      const response = await sendChat(audioBase64, messages, voice, apiKey);
+      const response = await sendChat(
+        audioBase64,
+        messages,
+        voice,
+        systemPrompt,
+        memory,
+        autoMemoryEnabled,
+        apiKey,
+      );
       const assistantMessage: ChatMessageType = {
         role: "assistant",
         text: response.transcript,
         audioBase64: response.audioBase64,
       };
       setMessages((prev) => [...prev, assistantMessage]);
+      if (response.memoryUpdate?.memory) {
+        setMemory(response.memoryUpdate.memory);
+        localStorage.setItem("speakup_memory", response.memoryUpdate.memory);
+      }
       addUsage(response.usage);
 
       // Persist to IndexedDB
@@ -199,6 +233,9 @@ export default function App() {
         <SettingsPage
           voice={voice}
           apiKey={apiKey}
+          systemPrompt={systemPrompt}
+          memory={memory}
+          autoMemoryEnabled={autoMemoryEnabled}
           onSave={handleSaveSettings}
           onBack={() => setPage("chat")}
         />
