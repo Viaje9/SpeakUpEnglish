@@ -6,11 +6,12 @@ import AudioPlayer from "./AudioPlayer";
 
 interface Props {
   message: ChatMessageType;
-  isLatest: boolean;
+  shouldAutoPlay: boolean;
+  onAutoPlayHandled?: () => void;
   apiKey?: string;
 }
 
-export default function ChatMessage({ message, isLatest, apiKey }: Props) {
+export default function ChatMessage({ message, shouldAutoPlay, onAutoPlayHandled, apiKey }: Props) {
   const isUser = message.role === "user";
   const isSummary = message.role === "summary";
   const [isAiPlaying, setIsAiPlaying] = useState(false);
@@ -69,10 +70,11 @@ export default function ChatMessage({ message, isLatest, apiKey }: Props) {
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
 
-    if (isLatest) {
+    if (shouldAutoPlay) {
       audio.currentTime = 0;
       requestAudioFocus(audio);
       audio.play().catch(() => {});
+      onAutoPlayHandled?.();
     }
 
     return () => {
@@ -80,7 +82,7 @@ export default function ChatMessage({ message, isLatest, apiKey }: Props) {
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
     };
-  }, [isUser, isLatest, message.audioBase64]);
+  }, [isUser, shouldAutoPlay, message.audioBase64, onAutoPlayHandled]);
 
   if (isSummary) {
     return (

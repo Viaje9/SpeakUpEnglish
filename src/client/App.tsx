@@ -40,6 +40,7 @@ export default function App() {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [autoPlaySignature, setAutoPlaySignature] = useState<string | null>(null);
   const { toasts, show: showToast, dismiss: dismissToast } = useToast();
   const { isRecording, start, stop, cancel } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -132,6 +133,7 @@ export default function App() {
         text: response.transcript,
         audioBase64: response.audioBase64,
       };
+      setAutoPlaySignature(response.audioBase64);
       setMessages((prev) => [...prev, assistantMessage]);
       if (response.memoryUpdate?.memory) {
         setMemory(response.memoryUpdate.memory);
@@ -151,6 +153,7 @@ export default function App() {
     } catch (err) {
       console.error("Send failed:", err);
       setMessages((prev) => prev.slice(0, -1));
+      setAutoPlaySignature(null);
       showToast("訊息傳送失敗，請再試一次。");
     } finally {
       setIsLoading(false);
@@ -182,6 +185,7 @@ export default function App() {
 
   const handleNewSession = () => {
     setMessages([]);
+    setAutoPlaySignature(null);
     setIsFinished(false);
     setTotalUsage(EMPTY_USAGE);
     setLastIncreaseTWD(0);
@@ -191,6 +195,7 @@ export default function App() {
   const handleLoadConversation = (convId: string, msgs: ChatMessageType[]) => {
     setConversationId(convId);
     setMessages(msgs);
+    setAutoPlaySignature(null);
     setIsFinished(msgs.some((m) => m.role === "summary"));
     setTotalUsage(EMPTY_USAGE);
     setLastIncreaseTWD(0);
@@ -310,7 +315,13 @@ export default function App() {
               <ChatMessage
                 key={i}
                 message={msg}
-                isLatest={i === messages.length - 1}
+                shouldAutoPlay={
+                  i === messages.length - 1 &&
+                  msg.role === "assistant" &&
+                  !!msg.audioBase64 &&
+                  msg.audioBase64 === autoPlaySignature
+                }
+                onAutoPlayHandled={() => setAutoPlaySignature(null)}
                 apiKey={apiKey}
               />
             ))}

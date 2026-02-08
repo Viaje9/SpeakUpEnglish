@@ -130,7 +130,7 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
             </div>
           ) : (
             detailMessages.map((msg, i) => (
-              <ChatMessage key={i} message={msg} isLatest={i === detailMessages.length - 1} />
+              <ChatMessage key={i} message={msg} shouldAutoPlay={false} />
             ))
           )}
         </main>
