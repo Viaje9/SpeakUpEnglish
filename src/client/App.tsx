@@ -5,7 +5,13 @@ import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import { RecorderStartError } from "./hooks/useAudioRecorder";
 import { blobToWavBase64 } from "./lib/audioUtils";
 import { sendChat, sendSummarize } from "./lib/api";
-import { createConversation, appendMessage, setSummary, migrateFromLocalStorage } from "./lib/db";
+import {
+  createConversation,
+  appendMessage,
+  setSummary,
+  migrateFromLocalStorage,
+  deleteConversation,
+} from "./lib/db";
 import ChatMessage from "./components/ChatMessage";
 import AudioRecorder from "./components/AudioRecorder";
 import SettingsPage from "./components/SettingsPage";
@@ -193,7 +199,15 @@ export default function App() {
     setConversationId(null);
   };
 
-  const handleConfirmNewSession = () => {
+  const handleConfirmNewSession = async () => {
+    if (conversationId) {
+      try {
+        await deleteConversation(conversationId);
+      } catch {
+        showToast("刪除聊天記錄失敗，請稍後再試。");
+        return;
+      }
+    }
     setConfirmNewChatOpen(false);
     handleNewSession();
   };
