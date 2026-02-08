@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { ChatMessage } from "../../shared/types.js";
+import type { ChatMessage, Voice } from "../../shared/types.js";
 
 let _client: OpenAI | null = null;
 function getClient() {
@@ -20,6 +20,7 @@ Guidelines:
 export async function chat(
   audioBase64: string,
   history: ChatMessage[],
+  voice: Voice = "alloy",
 ): Promise<{ transcript: string; audioBase64: string }> {
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -44,7 +45,7 @@ export async function chat(
   const response = await getClient().chat.completions.create({
     model: "gpt-4o-mini-audio-preview",
     modalities: ["text", "audio"],
-    audio: { voice: "alloy", format: "wav" },
+    audio: { voice, format: "wav" },
     messages,
   });
 

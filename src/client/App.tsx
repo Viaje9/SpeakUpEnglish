@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import type { ChatMessage as ChatMessageType } from "../shared/types";
+import type { ChatMessage as ChatMessageType, Voice } from "../shared/types";
+import { VOICES } from "../shared/types";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import { blobToWavBase64 } from "./lib/audioUtils";
 import { sendChat } from "./lib/api";
@@ -9,6 +10,7 @@ import AudioRecorder from "./components/AudioRecorder";
 export default function App() {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [voice, setVoice] = useState<Voice>("nova");
   const { isRecording, start, stop } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +39,7 @@ export default function App() {
       const userMessage: ChatMessageType = { role: "user", audioBase64 };
       setMessages((prev) => [...prev, userMessage]);
 
-      const response = await sendChat(audioBase64, messages);
+      const response = await sendChat(audioBase64, messages, voice);
 
       const assistantMessage: ChatMessageType = {
         role: "assistant",
@@ -63,9 +65,23 @@ export default function App() {
         <h1 className="text-center text-lg font-semibold text-gray-800">
           SpeakUp English
         </h1>
-        <p className="text-center text-xs text-gray-400">
-          Tap the mic and start speaking
-        </p>
+        <div className="mt-1 flex items-center justify-center gap-2">
+          <label htmlFor="voice" className="text-xs text-gray-400">
+            Voice:
+          </label>
+          <select
+            id="voice"
+            value={voice}
+            onChange={(e) => setVoice(e.target.value as Voice)}
+            className="rounded border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-600 outline-none focus:border-blue-400"
+          >
+            {VOICES.map((v) => (
+              <option key={v} value={v}>
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
       </header>
 
       {/* Messages */}
