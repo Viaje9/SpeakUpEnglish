@@ -1,7 +1,23 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const certDir = path.resolve(__dirname, ".cert");
+const certKeyPath = path.resolve(certDir, "localhost-key.pem");
+const certPath = path.resolve(certDir, "localhost.pem");
+const hasHttpsCert = fs.existsSync(certKeyPath) && fs.existsSync(certPath);
+
+const devHttps = hasHttpsCert
+  ? {
+      key: fs.readFileSync(certKeyPath),
+      cert: fs.readFileSync(certPath),
+    }
+  : undefined;
 
 const devPort = Number(process.env.VITE_DEV_PORT ?? 5891);
 const devHost = process.env.VITE_DEV_HOST ?? "0.0.0.0";
@@ -47,6 +63,7 @@ export default defineConfig({
     host: devHost,
     port: devPort,
     strictPort: true,
+    https: devHttps,
     proxy: {
       "/api": {
         target: proxyTarget,
@@ -59,5 +76,6 @@ export default defineConfig({
     host: devHost,
     port: devPort,
     strictPort: true,
+    https: devHttps,
   },
 });

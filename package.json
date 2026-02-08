@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"vite\" \"tsx watch src/server/index.ts\"",
-    "dev:client": "vite",
+    "dev": "npm run cert:generate && concurrently -k \"vite\" \"tsx watch src/server/index.ts\"",
+    "dev:client": "npm run cert:generate && vite",
     "dev:server": "tsx watch src/server/index.ts",
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node dist/server/server/index.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cert:generate": "node scripts/generate-dev-cert.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",
