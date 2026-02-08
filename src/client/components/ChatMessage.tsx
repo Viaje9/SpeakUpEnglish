@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { ChatMessage as ChatMessageType } from "../../shared/types";
+import { sendTranslate } from "../lib/api";
 import AudioPlayer from "./AudioPlayer";
 
 interface Props {
@@ -9,6 +11,9 @@ interface Props {
 export default function ChatMessage({ message, isLatest }: Props) {
   const isUser = message.role === "user";
   const isSummary = message.role === "summary";
+  const [translatedText, setTranslatedText] = useState<string | null>(null);
+  const [showTranslated, setShowTranslated] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   if (isSummary) {
     return (
@@ -59,7 +64,7 @@ export default function ChatMessage({ message, isLatest }: Props) {
           )}
           {!isUser && message.text && (
             <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-700">
-              {message.text}
+              {showTranslated && translatedText ? translatedText : message.text}
             </p>
           )}
         </div>
@@ -68,8 +73,42 @@ export default function ChatMessage({ message, isLatest }: Props) {
         {isUser && message.audioBase64 && (
           <AudioPlayer base64={message.audioBase64} autoPlay={false} variant="user" />
         )}
-        {!isUser && message.audioBase64 && (
-          <AudioPlayer base64={message.audioBase64} autoPlay={isLatest} variant="ai" />
+        {!isUser && (
+          <div className="flex shrink-0 flex-col items-center gap-1.5">
+            {message.text && (
+              <button
+                disabled={isTranslating}
+                onClick={async () => {
+                  if (showTranslated) {
+                    setShowTranslated(false);
+                    return;
+                  }
+
+                  if (translatedText) {
+                    setShowTranslated(true);
+                    return;
+                  }
+
+                  try {
+                    setIsTranslating(true);
+                    const result = await sendTranslate(message.text);
+                    setTranslatedText(result.translatedText || message.text);
+                    setShowTranslated(true);
+                  } catch (err) {
+                    console.error("Translate failed:", err);
+                  } finally {
+                    setIsTranslating(false);
+                  }
+                }}
+                className="rounded-full bg-sage-50 px-2.5 py-1 text-xs font-medium text-sage-500 transition-colors hover:bg-sage-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isTranslating ? "翻譯中..." : showTranslated ? "原文" : "翻譯"}
+              </button>
+            )}
+            {message.audioBase64 && (
+              <AudioPlayer base64={message.audioBase64} autoPlay={isLatest} variant="ai" />
+            )}
+          </div>
         )}
       </div>
     </div>

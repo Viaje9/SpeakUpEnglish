@@ -38,6 +38,14 @@ export interface SummarizeResponse {
   usage: TokenUsage;
 }
 
+export interface TranslateRequest {
+  text: string;
+}
+
+export interface TranslateResponse {
+  translatedText: string;
+}
+
 export interface Conversation {
   id: string;
   timestamp: number;

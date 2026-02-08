@@ -131,3 +131,20 @@ export async function previewVoice(voice: Voice): Promise<string> {
   const buffer = Buffer.from(await response.arrayBuffer());
   return buffer.toString("base64");
 }
+
+const TRANSLATE_PROMPT = `Translate the user's English text to Traditional Chinese (繁體中文).
+- Keep the meaning accurate and natural
+- Keep tone and intent
+- Return only translated Chinese text with no extra commentary`;
+
+export async function translateToTraditionalChinese(text: string): Promise<string> {
+  const response = await getClient().chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: TRANSLATE_PROMPT },
+      { role: "user", content: text },
+    ],
+  });
+
+  return response.choices[0].message.content?.trim() ?? "";
+}

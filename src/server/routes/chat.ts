@@ -1,7 +1,15 @@
 import { Router } from "express";
-import type { ChatRequest, ChatResponse, SummarizeRequest, SummarizeResponse, Voice } from "../../shared/types.js";
+import type {
+  ChatRequest,
+  ChatResponse,
+  SummarizeRequest,
+  SummarizeResponse,
+  TranslateRequest,
+  TranslateResponse,
+  Voice,
+} from "../../shared/types.js";
 import { VOICES } from "../../shared/types.js";
-import { chat, summarize, previewVoice } from "../lib/openai.js";
+import { chat, summarize, previewVoice, translateToTraditionalChinese } from "../lib/openai.js";
 
 const router = Router();
 
@@ -38,6 +46,24 @@ router.post("/summarize", async (req, res) => {
   } catch (err) {
     console.error("Summarize error:", err);
     res.status(500).json({ error: "Failed to summarize conversation" });
+  }
+});
+
+router.post("/translate", async (req, res) => {
+  try {
+    const { text } = req.body as TranslateRequest;
+
+    if (!text?.trim()) {
+      res.status(400).json({ error: "text is required" });
+      return;
+    }
+
+    const translatedText = await translateToTraditionalChinese(text);
+    const response: TranslateResponse = { translatedText };
+    res.json(response);
+  } catch (err) {
+    console.error("Translate error:", err);
+    res.status(500).json({ error: "Failed to translate text" });
   }
 });
 
