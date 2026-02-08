@@ -174,7 +174,7 @@ export default function App() {
       // Persist summary to IndexedDB
       if (conversationId) {
         await appendMessage(conversationId, summaryMessage, messages.length);
-        await setSummary(conversationId, response.summary);
+        await setSummary(conversationId, response.summary, response.title);
       }
     } catch {
       showToast("整理失敗，請再試一次。");

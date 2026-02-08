@@ -80,6 +80,15 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
     });
   };
 
+  const getFallbackTitle = (summary: string | null, ts: number) => {
+    const trimmed = summary?.trim();
+    if (trimmed) {
+      const firstLine = trimmed.split(/\r?\n/).find((line) => line.trim())?.trim() || trimmed;
+      return firstLine.length > 36 ? `${firstLine.slice(0, 36)}...` : firstLine;
+    }
+    return `英語練習 ${new Date(ts).toLocaleDateString("zh-TW")}`;
+  };
+
   // Detail view
   if (selectedConvId) {
     const conv = conversations.find((c) => c.id === selectedConvId);
@@ -185,6 +194,7 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
         ) : (
           <div className="space-y-3">
             {conversations.map((c) => {
+              const title = c.title?.trim() || getFallbackTitle(c.summary, c.timestamp);
               const preview = c.summary
                 ? c.summary.length > 80
                   ? c.summary.slice(0, 80) + "..."
@@ -228,6 +238,9 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
                       </button>
                     </div>
                   </div>
+                  <h3 className="mb-1 line-clamp-1 font-body text-sm font-semibold text-sage-500">
+                    {title}
+                  </h3>
                   <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-gray-700">
                     {preview}
                   </p>

@@ -53,6 +53,7 @@ export interface SummarizeRequest {
 }
 
 export interface SummarizeResponse {
+  title: string;
   summary: string;
   usage: TokenUsage;
 }
@@ -75,6 +76,7 @@ export interface Conversation {
   id: string;
   timestamp: number;
   updatedAt: number;
+  title: string | null;
   summary: string | null;
   messageCount: number;
 }

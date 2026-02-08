@@ -44,6 +44,7 @@ export async function createConversation(): Promise<string> {
     id,
     timestamp: now,
     updatedAt: now,
+    title: null,
     summary: null,
     messageCount: 0,
   };
@@ -77,11 +78,12 @@ export async function appendMessage(
   await tx.done;
 }
 
-export async function setSummary(convId: string, summary: string): Promise<void> {
+export async function setSummary(convId: string, summary: string, title?: string): Promise<void> {
   const db = await getDB();
   const conv = await db.get("conversations", convId);
   if (conv) {
     conv.summary = summary;
+    conv.title = title?.trim() || conv.title || null;
     conv.updatedAt = Date.now();
     await db.put("conversations", conv);
   }
@@ -144,6 +146,7 @@ export async function migrateFromLocalStorage(): Promise<void> {
         id: r.id,
         timestamp: r.timestamp,
         updatedAt: r.timestamp,
+        title: null,
         summary: r.summary,
         messageCount: 0,
       };

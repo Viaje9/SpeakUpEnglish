@@ -125,16 +125,67 @@ export async function chat(
 }
 
 const SUMMARIZE_PROMPT = `Based on the conversation above, summarize everything the USER said in first person.
-- Combine all the user's statements into a coherent, well-organized passage
+- Preserve completeness: include all meaningful details, examples, preferences, plans, feelings, and constraints mentioned by the user
+- Do not omit information just to make it shorter; prioritize fidelity over brevity
+- Merge repeated points without losing unique details
+- Keep the original meaning and nuance; do not invent new facts
+- If a part is unclear from audio, preserve uncertainty explicitly rather than deleting it
+- Organize naturally in a coherent flow (prefer chronological order when possible)
 - Write in first person as if the user is writing about themselves
 - Fix grammar and improve phrasing naturally, but keep the original meaning
 - Write in English only
-- Do not include anything the assistant said`;
+- Do not include anything the assistant said
+- Also create a concise conversation title in Traditional Chinese that best represents the user's topic
+- The title should be specific and clear (roughly 8-20 Chinese characters), no quotes, no punctuation-only title
+- Return ONLY valid JSON with this exact shape:
+  {"title":"...", "summary":"..."}`;
+
+function cleanTitle(raw: string): string {
+  return raw
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^["'「『（(【\[]+/, "")
+    .replace(/["'」』）)】\]]+$/, "")
+    .trim();
+}
+
+function deriveTitleFromSummary(summary: string): string {
+  const plain = summary
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!plain) return "本次英語練習";
+  const sentence = plain.split(/[.!?]/)[0]?.trim() || plain;
+  return sentence.length > 32 ? `${sentence.slice(0, 32)}...` : sentence;
+}
+
+function parseSummaryPayload(raw: string): { title: string; summary: string } {
+  const text = raw.trim();
+  if (!text) {
+    return { title: "本次英語練習", summary: "" };
+  }
+
+  const match = text.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[0]) as { title?: string; summary?: string };
+      const summary = parsed.summary?.trim() || "";
+      const title = cleanTitle(parsed.title?.trim() || "") || deriveTitleFromSummary(summary);
+      return { title, summary: summary || text };
+    } catch {
+      // fallback to plain text parsing below
+    }
+  }
+
+  return {
+    title: deriveTitleFromSummary(text),
+    summary: text,
+  };
+}
 
 export async function summarize(
   history: ChatMessage[],
   apiKey?: string,
-): Promise<{ summary: string; usage: TokenUsage }> {
+): Promise<{ title: string; summary: string; usage: TokenUsage }> {
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: DEFAULT_SYSTEM_PROMPT },
   ];
@@ -158,7 +209,8 @@ export async function summarize(
     messages,
   });
 
-  const summary = response.choices[0].message.content ?? "";
+  const content = response.choices[0].message.content ?? "";
+  const { title, summary } = parseSummaryPayload(content);
 
   const promptDetails = response.usage?.prompt_tokens_details as Record<string, number> | undefined;
   const completionDetails = response.usage?.completion_tokens_details as Record<string, number> | undefined;
@@ -173,7 +225,7 @@ export async function summarize(
     completionAudioTokens: completionDetails?.audio_tokens ?? 0,
   };
 
-  return { summary, usage };
+  return { title, summary, usage };
 }
 
 export async function previewVoice(voice: Voice, apiKey?: string): Promise<string> {
