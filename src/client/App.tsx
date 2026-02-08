@@ -686,12 +686,12 @@ export default function App() {
               onFocus={() => setIsNoteEditing(true)}
               onBlur={() => setIsNoteEditing(false)}
               placeholder="在這裡記錄你的口說重點、句型或提醒..."
-              className="h-full w-full resize-none overscroll-contain bg-white px-3 py-2.5 font-body text-sm leading-relaxed text-sage-500 outline-none placeholder:text-sage-300 [touch-action:pan-y]"
+              className="h-full w-full resize-none overscroll-contain bg-white px-3 pt-2.5 pb-10 font-body text-sm leading-relaxed text-sage-500 outline-none placeholder:text-sage-300 [touch-action:pan-y]"
             />
             <button
               type="button"
               aria-label="調整小抄高度"
-              className="absolute bottom-1 left-1 rounded-md p-1 text-sage-300 transition-colors hover:bg-sage-100 hover:text-sage-400 active:bg-sage-100 touch-none"
+              className="absolute bottom-2 left-2 rounded-md p-1 text-sage-300 transition-colors hover:bg-sage-100 hover:text-sage-400 active:bg-sage-100 touch-none"
               onPointerDown={handleNoteResizePointerDown}
               onPointerMove={handleNoteResizePointerMove}
               onPointerUp={handleNoteResizePointerEnd}
