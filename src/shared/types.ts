@@ -11,6 +11,7 @@ export interface ChatRequest {
   audioBase64: string;
   history: ChatMessage[];
   voice: Voice;
+  apiKey?: string;
 }
 
 export interface TokenUsage {
@@ -31,6 +32,7 @@ export interface ChatResponse {
 
 export interface SummarizeRequest {
   history: ChatMessage[];
+  apiKey?: string;
 }
 
 export interface SummarizeResponse {
@@ -40,6 +42,12 @@ export interface SummarizeResponse {
 
 export interface TranslateRequest {
   text: string;
+  apiKey?: string;
+}
+
+export interface VoicePreviewRequest {
+  voice: Voice;
+  apiKey?: string;
 }
 
 export interface TranslateResponse {

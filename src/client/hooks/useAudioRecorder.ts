@@ -2,6 +2,20 @@ import { useState, useRef, useCallback } from "react";
 
 const MAX_DURATION_MS = 30_000;
 
+export type RecorderStartErrorCode =
+  | "INSECURE_CONTEXT"
+  | "MEDIA_DEVICES_UNAVAILABLE"
+  | "MEDIA_RECORDER_UNSUPPORTED";
+
+export class RecorderStartError extends Error {
+  code: RecorderStartErrorCode;
+
+  constructor(code: RecorderStartErrorCode, message: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
 export function useAudioRecorder() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -9,8 +23,33 @@ export function useAudioRecorder() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const start = useCallback(async () => {
+    if (!window.isSecureContext) {
+      throw new RecorderStartError(
+        "INSECURE_CONTEXT",
+        "Microphone access requires a secure context (HTTPS or localhost).",
+      );
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new RecorderStartError(
+        "MEDIA_DEVICES_UNAVAILABLE",
+        "navigator.mediaDevices.getUserMedia is unavailable.",
+      );
+    }
+    if (typeof MediaRecorder === "undefined") {
+      throw new RecorderStartError(
+        "MEDIA_RECORDER_UNSUPPORTED",
+        "MediaRecorder is not supported in this browser.",
+      );
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
+    const preferredTypes = [
+      "audio/webm;codecs=opus",
+      "audio/mp4",
+      "audio/webm",
+    ];
+    const supportedType = preferredTypes.find((t) => MediaRecorder.isTypeSupported?.(t));
+    const recorder = supportedType ? new MediaRecorder(stream, { mimeType: supportedType }) : new MediaRecorder(stream);
     mediaRecorderRef.current = recorder;
     chunksRef.current = [];
 

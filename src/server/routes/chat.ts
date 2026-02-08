@@ -7,22 +7,30 @@ import type {
   TranslateRequest,
   TranslateResponse,
   Voice,
+  VoicePreviewRequest,
 } from "../../shared/types.js";
 import { VOICES } from "../../shared/types.js";
 import { chat, summarize, previewVoice, translateToTraditionalChinese } from "../lib/openai.js";
 
 const router = Router();
+const hasServerApiKey = Boolean(process.env.OPENAI_API_KEY?.trim());
+const hasValidApiKey = (apiKey?: string) => Boolean(apiKey?.trim() || hasServerApiKey);
 
 router.post("/chat", async (req, res) => {
   try {
     const { audioBase64, history, voice } = req.body as ChatRequest;
+    const { apiKey } = req.body as ChatRequest;
 
     if (!audioBase64) {
       res.status(400).json({ error: "audioBase64 is required" });
       return;
     }
+    if (!hasValidApiKey(apiKey)) {
+      res.status(400).json({ error: "OpenAI API Key is required" });
+      return;
+    }
 
-    const result = await chat(audioBase64, history ?? [], voice ?? "alloy");
+    const result = await chat(audioBase64, history ?? [], voice ?? "alloy", apiKey);
     const response: ChatResponse = result;
     res.json(response);
   } catch (err) {
@@ -33,14 +41,18 @@ router.post("/chat", async (req, res) => {
 
 router.post("/summarize", async (req, res) => {
   try {
-    const { history } = req.body as SummarizeRequest;
+    const { history, apiKey } = req.body as SummarizeRequest;
 
     if (!history || history.length === 0) {
       res.status(400).json({ error: "history is required" });
       return;
     }
+    if (!hasValidApiKey(apiKey)) {
+      res.status(400).json({ error: "OpenAI API Key is required" });
+      return;
+    }
 
-    const result = await summarize(history);
+    const result = await summarize(history, apiKey);
     const response: SummarizeResponse = result;
     res.json(response);
   } catch (err) {
@@ -51,14 +63,18 @@ router.post("/summarize", async (req, res) => {
 
 router.post("/translate", async (req, res) => {
   try {
-    const { text } = req.body as TranslateRequest;
+    const { text, apiKey } = req.body as TranslateRequest;
 
     if (!text?.trim()) {
       res.status(400).json({ error: "text is required" });
       return;
     }
+    if (!hasValidApiKey(apiKey)) {
+      res.status(400).json({ error: "OpenAI API Key is required" });
+      return;
+    }
 
-    const translatedText = await translateToTraditionalChinese(text);
+    const translatedText = await translateToTraditionalChinese(text, apiKey);
     const response: TranslateResponse = { translatedText };
     res.json(response);
   } catch (err) {
@@ -67,15 +83,19 @@ router.post("/translate", async (req, res) => {
   }
 });
 
-router.get("/voice-preview", async (req, res) => {
+router.post("/voice-preview", async (req, res) => {
   try {
-    const voice = req.query.voice as string;
+    const { voice, apiKey } = req.body as VoicePreviewRequest;
     if (!voice || !VOICES.includes(voice as Voice)) {
       res.status(400).json({ error: "Invalid voice" });
       return;
     }
+    if (!hasValidApiKey(apiKey)) {
+      res.status(400).json({ error: "OpenAI API Key is required" });
+      return;
+    }
 
-    const audioBase64 = await previewVoice(voice as Voice);
+    const audioBase64 = await previewVoice(voice as Voice, apiKey);
     res.json({ audioBase64 });
   } catch (err) {
     console.error("Voice preview error:", err);

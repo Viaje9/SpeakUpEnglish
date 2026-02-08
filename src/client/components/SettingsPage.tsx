@@ -1,24 +1,42 @@
 import { useState, useRef } from "react";
 import type { Voice } from "../../shared/types";
-import { VOICES } from "../../shared/types";
+import VoiceSelect from "./VoiceSelect";
+import { sendVoicePreview } from "../lib/api";
 
 interface Props {
   voice: Voice;
-  onChangeVoice: (v: Voice) => void;
+  apiKey: string;
+  onSave: (voice: Voice, apiKey: string) => void;
   onBack: () => void;
 }
 
-export default function SettingsPage({ voice, onChangeVoice, onBack }: Props) {
+export default function SettingsPage({
+  voice,
+  apiKey,
+  onSave,
+  onBack,
+}: Props) {
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [draftVoice, setDraftVoice] = useState<Voice>(voice);
+  const [draftApiKey, setDraftApiKey] = useState(apiKey);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isDirty = draftVoice !== voice || draftApiKey !== apiKey;
+
+  const handleBack = () => {
+    if (!isDirty) {
+      onBack();
+      return;
+    }
+    setShowDiscardModal(true);
+  };
 
   const handlePreview = async (v: Voice) => {
     if (isPreviewing) return;
     setIsPreviewing(true);
     try {
-      const res = await fetch(`/api/voice-preview?voice=${v}`);
-      if (!res.ok) throw new Error();
-      const { audioBase64 } = await res.json();
+      const { audioBase64 } = await sendVoicePreview(v, draftApiKey);
       if (audioRef.current) audioRef.current.pause();
       const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
       audioRef.current = audio;
@@ -31,11 +49,11 @@ export default function SettingsPage({ voice, onChangeVoice, onBack }: Props) {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {/* Header */}
       <header className="flex shrink-0 items-center border-b border-sage-100 bg-white px-4 py-3">
         <button
-          onClick={onBack}
+          onClick={handleBack}
           className="rounded-lg p-1.5 text-sage-400 transition-colors hover:bg-sage-50 hover:text-sage-500"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -45,68 +63,84 @@ export default function SettingsPage({ voice, onChangeVoice, onBack }: Props) {
         <h2 className="flex-1 text-center font-display text-base font-semibold text-sage-500">
           設定
         </h2>
-        <div className="w-8" />
+        <button
+          onClick={() => onSave(draftVoice, draftApiKey)}
+          disabled={!isDirty}
+          className="rounded-lg bg-brand-500 px-3 py-1.5 font-body text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:bg-sage-200"
+        >
+          儲存
+        </button>
       </header>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <p className="mb-3 font-body text-xs font-medium tracking-wide text-sage-400">
-          AI 語音
-        </p>
-        <div className="space-y-1.5">
-          {VOICES.map((v) => {
-            const selected = v === voice;
-            return (
-              <div
-                key={v}
-                className={`flex items-center justify-between rounded-xl px-4 py-3 transition-colors ${
-                  selected
-                    ? "bg-brand-50 ring-1 ring-brand-200"
-                    : "bg-white ring-1 ring-sage-100 hover:ring-sage-200"
-                }`}
-              >
-                <button
-                  onClick={() => onChangeVoice(v)}
-                  className="flex flex-1 items-center gap-3"
-                >
-                  {selected ? (
-                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-500">
-                      <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                      </svg>
-                    </div>
-                  ) : (
-                    <div className="h-5 w-5 rounded-full border-2 border-sage-200" />
-                  )}
-                  <span
-                    className={`font-body text-sm ${
-                      selected ? "font-medium text-brand-600" : "text-sage-500"
-                    }`}
-                  >
-                    {v.charAt(0).toUpperCase() + v.slice(1)}
-                  </span>
-                </button>
-                <button
-                  onClick={() => handlePreview(v)}
-                  disabled={isPreviewing}
-                  className="rounded-lg p-2 text-sage-300 transition-colors hover:bg-sage-50 hover:text-brand-500 disabled:opacity-40"
-                >
-                  {isPreviewing ? (
-                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  ) : (
-                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            );
-          })}
-        </div>
+      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        <section className="rounded-2xl bg-white p-4 ring-1 ring-sage-100">
+          <p className="mb-2 font-body text-xs font-medium tracking-wide text-sage-400">
+            AI 語音
+          </p>
+          <VoiceSelect
+            value={draftVoice}
+            onChange={setDraftVoice}
+            onPreview={() => handlePreview(draftVoice)}
+            isPreviewing={isPreviewing}
+          />
+        </section>
+
+        <section className="rounded-2xl bg-white p-4 ring-1 ring-sage-100">
+          <p className="mb-2 font-body text-xs font-medium tracking-wide text-sage-400">
+            OpenAI API Key
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              value={draftApiKey}
+              onChange={(e) => setDraftApiKey(e.target.value)}
+              type={showApiKey ? "text" : "password"}
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="sk-..."
+              className="h-10 w-full rounded-lg border border-sage-200 bg-sage-50 px-3 font-body text-sm text-sage-500 outline-none transition-colors focus:border-brand-300 focus:bg-white"
+            />
+            <button
+              onClick={() => setShowApiKey((v) => !v)}
+              className="h-10 shrink-0 rounded-lg border border-sage-200 bg-white px-3 font-body text-xs text-sage-500 transition-colors hover:border-brand-200 hover:text-brand-600"
+            >
+              {showApiKey ? "隱藏" : "顯示"}
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-sage-300">
+            會儲存在此裝置的 localStorage，送出請求時使用這組金鑰。
+          </p>
+        </section>
       </div>
+
+      {showDiscardModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full rounded-2xl bg-white p-4 shadow-xl sm:max-w-sm">
+            <h3 className="font-display text-base font-semibold text-sage-500">放棄未儲存變更？</h3>
+            <p className="mt-2 text-sm leading-relaxed text-sage-400">
+              你有未儲存的設定，離開後這次修改不會保留。
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setShowDiscardModal(false)}
+                className="h-10 flex-1 rounded-lg border border-sage-200 bg-white font-body text-sm text-sage-500 transition-colors hover:border-sage-300"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  setShowDiscardModal(false);
+                  onBack();
+                }}
+                className="h-10 flex-1 rounded-lg bg-brand-500 font-body text-sm font-medium text-white transition-colors hover:bg-brand-600"
+              >
+                放棄並離開
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,9 +6,10 @@ import AudioPlayer from "./AudioPlayer";
 interface Props {
   message: ChatMessageType;
   isLatest: boolean;
+  apiKey?: string;
 }
 
-export default function ChatMessage({ message, isLatest }: Props) {
+export default function ChatMessage({ message, isLatest, apiKey }: Props) {
   const isUser = message.role === "user";
   const isSummary = message.role === "summary";
   const [translatedText, setTranslatedText] = useState<string | null>(null);
@@ -91,7 +92,7 @@ export default function ChatMessage({ message, isLatest }: Props) {
 
                   try {
                     setIsTranslating(true);
-                    const result = await sendTranslate(message.text);
+                    const result = await sendTranslate(message.text, apiKey);
                     setTranslatedText(result.translatedText || message.text);
                     setShowTranslated(true);
                   } catch (err) {

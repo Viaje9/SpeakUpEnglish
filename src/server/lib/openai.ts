@@ -2,7 +2,9 @@ import OpenAI from "openai";
 import type { ChatMessage, Voice, TokenUsage } from "../../shared/types.js";
 
 let _client: OpenAI | null = null;
-function getClient() {
+function getClient(apiKey?: string) {
+  const trimmedApiKey = apiKey?.trim();
+  if (trimmedApiKey) return new OpenAI({ apiKey: trimmedApiKey });
   if (!_client) _client = new OpenAI();
   return _client;
 }
@@ -21,6 +23,7 @@ export async function chat(
   audioBase64: string,
   history: ChatMessage[],
   voice: Voice = "alloy",
+  apiKey?: string,
 ): Promise<{ transcript: string; audioBase64: string; usage: TokenUsage }> {
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -42,7 +45,7 @@ export async function chat(
     content: [{ type: "input_audio", input_audio: { data: audioBase64, format: "wav" } }],
   });
 
-  const response = await getClient().chat.completions.create({
+  const response = await getClient(apiKey).chat.completions.create({
     model: "gpt-4o-mini-audio-preview",
     modalities: ["text", "audio"],
     audio: { voice, format: "wav" },
@@ -78,6 +81,7 @@ const SUMMARIZE_PROMPT = `Based on the conversation above, summarize everything 
 
 export async function summarize(
   history: ChatMessage[],
+  apiKey?: string,
 ): Promise<{ summary: string; usage: TokenUsage }> {
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -96,7 +100,7 @@ export async function summarize(
 
   messages.push({ role: "user", content: SUMMARIZE_PROMPT });
 
-  const response = await getClient().chat.completions.create({
+  const response = await getClient(apiKey).chat.completions.create({
     model: "gpt-4o-mini-audio-preview",
     modalities: ["text"],
     messages,
@@ -120,8 +124,8 @@ export async function summarize(
   return { summary, usage };
 }
 
-export async function previewVoice(voice: Voice): Promise<string> {
-  const response = await getClient().audio.speech.create({
+export async function previewVoice(voice: Voice, apiKey?: string): Promise<string> {
+  const response = await getClient(apiKey).audio.speech.create({
     model: "tts-1",
     voice,
     input: "Hi there! I'm excited to practice English with you today.",
@@ -137,8 +141,8 @@ const TRANSLATE_PROMPT = `Translate the user's English text to Traditional Chine
 - Keep tone and intent
 - Return only translated Chinese text with no extra commentary`;
 
-export async function translateToTraditionalChinese(text: string): Promise<string> {
-  const response = await getClient().chat.completions.create({
+export async function translateToTraditionalChinese(text: string, apiKey?: string): Promise<string> {
+  const response = await getClient(apiKey).chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       { role: "system", content: TRANSLATE_PROMPT },

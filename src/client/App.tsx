@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import type { ChatMessage as ChatMessageType, Voice, TokenUsage } from "../shared/types";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
+import { RecorderStartError } from "./hooks/useAudioRecorder";
 import { blobToWavBase64 } from "./lib/audioUtils";
 import { sendChat, sendSummarize } from "./lib/api";
 import { createConversation, appendMessage, setSummary, migrateFromLocalStorage } from "./lib/db";
@@ -25,6 +26,7 @@ export default function App() {
   const [voice, setVoice] = useState<Voice>(() => {
     return (localStorage.getItem("speakup_voice") as Voice) || "nova";
   });
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem("speakup_openai_api_key") || "");
   const [totalUsage, setTotalUsage] = useState<TokenUsage>(EMPTY_USAGE);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
@@ -41,16 +43,47 @@ export default function App() {
     migrateFromLocalStorage();
   }, []);
 
-  const handleChangeVoice = (v: Voice) => {
-    setVoice(v);
-    localStorage.setItem("speakup_voice", v);
+  const handleSaveSettings = (nextVoice: Voice, nextApiKey: string) => {
+    const normalizedKey = nextApiKey.trim();
+    setVoice(nextVoice);
+    setApiKey(normalizedKey);
+    localStorage.setItem("speakup_voice", nextVoice);
+    localStorage.setItem("speakup_openai_api_key", normalizedKey);
+    showToast("設定已儲存");
+    setPage("chat");
   };
 
   const handleStart = async () => {
     try {
       await start();
-    } catch {
-      showToast("無法存取麥克風，請允許麥克風權限。");
+    } catch (err) {
+      if (err instanceof RecorderStartError) {
+        if (err.code === "INSECURE_CONTEXT") {
+          showToast("iOS PWA 需要 HTTPS 才能使用麥克風（localhost 除外）。");
+          return;
+        }
+        if (err.code === "MEDIA_DEVICES_UNAVAILABLE") {
+          showToast("此環境無法使用麥克風 API，請改用 Safari HTTPS 頁面測試。");
+          return;
+        }
+        if (err.code === "MEDIA_RECORDER_UNSUPPORTED") {
+          showToast("此裝置或瀏覽器不支援錄音功能。");
+          return;
+        }
+      }
+
+      if (err instanceof DOMException) {
+        if (err.name === "NotAllowedError") {
+          showToast("麥克風權限被拒絕，請到 iOS 設定允許 Safari/網站麥克風。");
+          return;
+        }
+        if (err.name === "NotFoundError") {
+          showToast("找不到可用麥克風裝置。");
+          return;
+        }
+      }
+
+      showToast("無法存取麥克風，請確認 HTTPS 與麥克風權限。");
     }
   };
 
@@ -62,7 +95,7 @@ export default function App() {
       const audioBase64 = await blobToWavBase64(blob);
       const userMessage: ChatMessageType = { role: "user", audioBase64 };
       setMessages((prev) => [...prev, userMessage]);
-      const response = await sendChat(audioBase64, messages, voice);
+      const response = await sendChat(audioBase64, messages, voice, apiKey);
       const assistantMessage: ChatMessageType = {
         role: "assistant",
         text: response.transcript,
@@ -94,7 +127,7 @@ export default function App() {
     setIsSummarizing(true);
     try {
       const chatHistory = messages.filter((m) => m.role !== "summary");
-      const response = await sendSummarize(chatHistory);
+      const response = await sendSummarize(chatHistory, apiKey);
       const summaryMessage: ChatMessageType = { role: "summary", text: response.summary };
       setMessages((prev) => [...prev, summaryMessage]);
       setIsFinished(true);
@@ -159,7 +192,8 @@ export default function App() {
       {page === "settings" && (
         <SettingsPage
           voice={voice}
-          onChangeVoice={handleChangeVoice}
+          apiKey={apiKey}
+          onSave={handleSaveSettings}
           onBack={() => setPage("chat")}
         />
       )}
@@ -234,6 +268,7 @@ export default function App() {
                 key={i}
                 message={msg}
                 isLatest={i === messages.length - 1}
+                apiKey={apiKey}
               />
             ))}
             <div ref={messagesEndRef} />
