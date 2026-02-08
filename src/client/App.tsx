@@ -29,7 +29,8 @@ const EMPTY_USAGE: TokenUsage = {
 const FLOATING_BTN_HEIGHT = 56;
 const FLOATING_BTN_MARGIN = 12;
 const NOTE_PANEL_SIDE_GAP = 12;
-const NOTE_PANEL_HEIGHT = 320;
+const NOTE_PANEL_INITIAL_HEIGHT = 320;
+const NOTE_PANEL_MIN_HEIGHT = 220;
 const NOTE_PANEL_SAFE_BOTTOM = 136;
 
 export default function App() {
@@ -56,6 +57,11 @@ export default function App() {
   const [confirmNewChatOpen, setConfirmNewChatOpen] = useState(false);
   const [isNotePanelOpen, setIsNotePanelOpen] = useState(false);
   const [noteText, setNoteText] = useState<string>(() => localStorage.getItem("speakup_floating_note") || "");
+  const [notePanelHeight, setNotePanelHeight] = useState(() => {
+    const parsed = Number.parseInt(localStorage.getItem("speakup_floating_note_height") || "", 10);
+    if (!Number.isFinite(parsed)) return NOTE_PANEL_INITIAL_HEIGHT;
+    return Math.max(NOTE_PANEL_MIN_HEIGHT, parsed);
+  });
   const [floatingBtnTop, setFloatingBtnTop] = useState(() => {
     if (typeof window === "undefined") return 280;
     return Math.max(FLOATING_BTN_MARGIN, window.innerHeight / 2 - FLOATING_BTN_HEIGHT / 2);
@@ -64,7 +70,7 @@ export default function App() {
     if (typeof window === "undefined") return 96;
     const maxTop = Math.max(
       FLOATING_BTN_MARGIN,
-      window.innerHeight - NOTE_PANEL_HEIGHT - NOTE_PANEL_SAFE_BOTTOM,
+      window.innerHeight - NOTE_PANEL_INITIAL_HEIGHT - NOTE_PANEL_SAFE_BOTTOM,
     );
     return Math.min(Math.max(96, FLOATING_BTN_MARGIN), maxTop);
   });
@@ -79,6 +85,12 @@ export default function App() {
     active: false,
     pointerId: -1,
     offsetY: 0,
+  });
+  const noteResizeStateRef = useRef({
+    active: false,
+    pointerId: -1,
+    startHeight: NOTE_PANEL_INITIAL_HEIGHT,
+    startClientY: 0,
   });
   const floatingDraggedRef = useRef(false);
   const notePanelRef = useRef<HTMLDivElement>(null);
@@ -101,21 +113,33 @@ export default function App() {
       return Math.min(Math.max(top, FLOATING_BTN_MARGIN), maxTop);
     };
 
-    const clampNoteTop = (top: number) => {
-      const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - NOTE_PANEL_HEIGHT - NOTE_PANEL_SAFE_BOTTOM);
+    const clampNoteHeight = (height: number, top: number) => {
+      const maxHeight = Math.max(
+        NOTE_PANEL_MIN_HEIGHT,
+        window.innerHeight - top - NOTE_PANEL_SAFE_BOTTOM,
+      );
+      return Math.min(Math.max(height, NOTE_PANEL_MIN_HEIGHT), maxHeight);
+    };
+
+    const clampNoteTop = (top: number, height: number) => {
+      const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - height - NOTE_PANEL_SAFE_BOTTOM);
       return Math.min(Math.max(top, FLOATING_BTN_MARGIN), maxTop);
     };
 
     const handleResize = () => {
       setFloatingBtnTop((prev) => clampFloatingTop(prev));
-      setNotePanelTop((prev) => clampNoteTop(prev));
+      setNotePanelTop((prevTop) => {
+        const nextTop = clampNoteTop(prevTop, notePanelHeight);
+        setNotePanelHeight((prevHeight) => clampNoteHeight(prevHeight, nextTop));
+        return nextTop;
+      });
     };
 
     window.addEventListener("resize", handleResize);
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [notePanelHeight]);
 
   const handleFloatingPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -168,7 +192,7 @@ export default function App() {
 
   const handleNotePanelPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
-    if (target.closest("textarea,button,input,a")) return;
+    if (!target.closest("[data-note-drag-handle='true']")) return;
 
     const panelElement = notePanelRef.current;
     if (!panelElement) return;
@@ -186,8 +210,9 @@ export default function App() {
   const handleNotePanelPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const dragState = noteDragStateRef.current;
     if (!dragState.active || dragState.pointerId !== event.pointerId) return;
+    event.preventDefault();
 
-    const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - NOTE_PANEL_HEIGHT - NOTE_PANEL_SAFE_BOTTOM);
+    const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - notePanelHeight - NOTE_PANEL_SAFE_BOTTOM);
     const nextTop = event.clientY - dragState.offsetY;
     setNotePanelTop(Math.min(Math.max(nextTop, FLOATING_BTN_MARGIN), maxTop));
   };
@@ -210,6 +235,54 @@ export default function App() {
   const handleNoteTextChange = (value: string) => {
     setNoteText(value);
     localStorage.setItem("speakup_floating_note", value);
+  };
+
+  const handleNoteResizePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    noteResizeStateRef.current = {
+      active: true,
+      pointerId: event.pointerId,
+      startHeight: notePanelHeight,
+      startClientY: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleNoteResizePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const resizeState = noteResizeStateRef.current;
+    if (!resizeState.active || resizeState.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const deltaY = event.clientY - resizeState.startClientY;
+    const maxHeight = Math.max(
+      NOTE_PANEL_MIN_HEIGHT,
+      window.innerHeight - notePanelTop - NOTE_PANEL_SAFE_BOTTOM,
+    );
+    const nextHeight = Math.min(
+      Math.max(resizeState.startHeight + deltaY, NOTE_PANEL_MIN_HEIGHT),
+      maxHeight,
+    );
+    setNotePanelHeight(nextHeight);
+  };
+
+  const handleNoteResizePointerEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const resizeState = noteResizeStateRef.current;
+    if (resizeState.pointerId !== event.pointerId) return;
+
+    noteResizeStateRef.current = {
+      active: false,
+      pointerId: -1,
+      startHeight: NOTE_PANEL_INITIAL_HEIGHT,
+      startClientY: 0,
+    };
+
+    localStorage.setItem("speakup_floating_note_height", String(Math.round(notePanelHeight)));
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   };
 
   const handleSaveSettings = (
@@ -573,11 +646,12 @@ export default function App() {
             ref={notePanelRef}
             role="dialog"
             aria-label="筆記視窗"
-            className="pointer-events-auto fixed mx-auto flex h-80 flex-col overflow-hidden rounded-2xl border border-sage-200 bg-white shadow-xl shadow-sage-500/25"
+            className="pointer-events-auto fixed mx-auto flex flex-col overflow-hidden overscroll-contain rounded-2xl border border-sage-200 bg-white shadow-xl shadow-sage-500/25"
             style={{
               top: `${notePanelTop}px`,
               left: `${NOTE_PANEL_SIDE_GAP}px`,
               right: `${NOTE_PANEL_SIDE_GAP}px`,
+              height: `${notePanelHeight}px`,
               maxWidth: `calc(32rem - ${NOTE_PANEL_SIDE_GAP * 2}px)`,
             }}
             onPointerDown={handleNotePanelPointerDown}
@@ -585,7 +659,10 @@ export default function App() {
             onPointerUp={handleNotePanelPointerEnd}
             onPointerCancel={handleNotePanelPointerEnd}
           >
-            <header className="flex cursor-grab items-center justify-between border-b border-sage-100 bg-sage-50 px-3 py-2.5 active:cursor-grabbing">
+            <header
+              data-note-drag-handle="true"
+              className="flex cursor-grab touch-none items-center justify-between border-b border-sage-100 bg-sage-50 px-3 py-2.5 active:cursor-grabbing"
+            >
               <p className="font-body text-sm font-medium text-sage-500">小抄筆記</p>
               <button
                 type="button"
@@ -604,6 +681,19 @@ export default function App() {
               placeholder="在這裡記錄你的口說重點、句型或提醒..."
               className="h-full w-full resize-none bg-white px-3 py-2.5 font-body text-sm leading-relaxed text-sage-500 outline-none placeholder:text-sage-300"
             />
+            <button
+              type="button"
+              aria-label="調整小抄高度"
+              className="absolute bottom-1 left-1 rounded-md p-1 text-sage-300 transition-colors hover:bg-sage-100 hover:text-sage-400 active:bg-sage-100 touch-none"
+              onPointerDown={handleNoteResizePointerDown}
+              onPointerMove={handleNoteResizePointerMove}
+              onPointerUp={handleNoteResizePointerEnd}
+              onPointerCancel={handleNoteResizePointerEnd}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 6L18 18M6 10L14 18M10 6L18 14" />
+              </svg>
+            </button>
           </div>
         )}
       </div>
