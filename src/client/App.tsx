@@ -28,6 +28,7 @@ export default function App() {
   });
   const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem("speakup_openai_api_key") || "");
   const [totalUsage, setTotalUsage] = useState<TokenUsage>(EMPTY_USAGE);
+  const [lastIncreaseTWD, setLastIncreaseTWD] = useState(0);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -149,6 +150,7 @@ export default function App() {
     setMessages([]);
     setIsFinished(false);
     setTotalUsage(EMPTY_USAGE);
+    setLastIncreaseTWD(0);
     setConversationId(null);
   };
 
@@ -157,10 +159,22 @@ export default function App() {
     setMessages(msgs);
     setIsFinished(msgs.some((m) => m.role === "summary"));
     setTotalUsage(EMPTY_USAGE);
+    setLastIncreaseTWD(0);
     setPage("chat");
   };
 
+  const calculateUsageCostUSD = (usage: TokenUsage) => {
+    const r = { textIn: 0.15, audioIn: 10, textOut: 0.60, audioOut: 20 };
+    return (
+      usage.promptTextTokens * r.textIn +
+      usage.promptAudioTokens * r.audioIn +
+      usage.completionTextTokens * r.textOut +
+      usage.completionAudioTokens * r.audioOut
+    ) / 1_000_000;
+  };
+
   const addUsage = (usage: TokenUsage) => {
+    setLastIncreaseTWD(calculateUsageCostUSD(usage) * 32.5);
     setTotalUsage((prev) => ({
       promptTokens: prev.promptTokens + usage.promptTokens,
       completionTokens: prev.completionTokens + usage.completionTokens,
@@ -174,15 +188,7 @@ export default function App() {
 
   const hasUserMessages = messages.some((m) => m.role === "user");
 
-  const costUSD = (() => {
-    const r = { textIn: 0.15, audioIn: 10, textOut: 0.60, audioOut: 20 };
-    return (
-      totalUsage.promptTextTokens * r.textIn +
-      totalUsage.promptAudioTokens * r.audioIn +
-      totalUsage.completionTextTokens * r.textOut +
-      totalUsage.completionAudioTokens * r.audioOut
-    ) / 1_000_000;
-  })();
+  const costUSD = calculateUsageCostUSD(totalUsage);
   const costTWD = costUSD * 32.5;
 
   return (
@@ -280,6 +286,7 @@ export default function App() {
               {totalUsage.totalTokens.toLocaleString()} tokens
               {" / "}${costUSD.toFixed(4)} USD
               {" / "}NT${costTWD.toFixed(2)}
+              <span className="text-green-600">{" / "}+NT${lastIncreaseTWD.toFixed(2)}</span>
             </div>
           )}
 
