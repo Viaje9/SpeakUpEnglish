@@ -41,6 +41,7 @@ export default function App() {
   const [isFinished, setIsFinished] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [autoPlaySignature, setAutoPlaySignature] = useState<string | null>(null);
+  const [confirmNewChatOpen, setConfirmNewChatOpen] = useState(false);
   const { toasts, show: showToast, dismiss: dismissToast } = useToast();
   const { isRecording, start, stop, cancel } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -190,6 +191,11 @@ export default function App() {
     setTotalUsage(EMPTY_USAGE);
     setLastIncreaseTWD(0);
     setConversationId(null);
+  };
+
+  const handleConfirmNewSession = () => {
+    setConfirmNewChatOpen(false);
+    handleNewSession();
   };
 
   const handleLoadConversation = (convId: string, msgs: ChatMessageType[]) => {
@@ -350,10 +356,47 @@ export default function App() {
               onStop={handleStop}
               onCancel={cancel}
               onSummarize={handleSummarize}
-              onNewSession={handleNewSession}
+              onRequestNewSession={() => setConfirmNewChatOpen(true)}
             />
           </footer>
         </>
+      )}
+
+      {confirmNewChatOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-sage-500/35 px-5"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="new-chat-confirm-title"
+          aria-describedby="new-chat-confirm-desc"
+          onClick={() => setConfirmNewChatOpen(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl shadow-sage-500/20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p id="new-chat-confirm-title" className="font-display text-lg font-semibold text-sage-500">
+              開始新對話？
+            </p>
+            <p id="new-chat-confirm-desc" className="mt-2 text-sm leading-relaxed text-sage-400">
+              目前對話紀錄將被清除，且無法復原。
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setConfirmNewChatOpen(false)}
+                className="rounded-xl border border-sage-100 bg-sage-50 px-3 py-2 text-sm font-medium text-sage-500 active:scale-95"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmNewSession}
+                className="rounded-xl bg-brand-500 px-3 py-2 text-sm font-medium text-white shadow-md shadow-brand-200 active:scale-95"
+              >
+                清除並開始
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

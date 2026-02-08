@@ -8,7 +8,7 @@ interface AudioRecorderProps {
   onStop: () => void;
   onCancel: () => void;
   onSummarize: () => void;
-  onNewSession: () => void;
+  onRequestNewSession: () => void;
 }
 
 export default function AudioRecorder({
@@ -21,14 +21,14 @@ export default function AudioRecorder({
   onStop,
   onCancel,
   onSummarize,
-  onNewSession,
+  onRequestNewSession,
 }: AudioRecorderProps) {
   if (isFinished) {
     return (
       <div className="flex flex-col items-center gap-3 py-4">
         <button
-          onClick={onNewSession}
-          className="flex items-center gap-2 rounded-xl bg-brand-500 px-6 py-2.5 font-body text-sm font-medium text-white shadow-lg shadow-brand-200 transition-all hover:bg-brand-600 active:scale-95"
+          onClick={onRequestNewSession}
+          className="flex items-center gap-2 rounded-xl bg-brand-500 px-6 py-2.5 font-body text-sm font-medium text-white shadow-lg shadow-brand-200 active:scale-95"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -56,28 +56,38 @@ export default function AudioRecorder({
 
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center py-4">
-      {/* Left slot — cancel button while recording */}
+      {/* Left slot — cancel while recording / new chat while idle */}
       <div className="flex justify-end pr-5">
-        {isRecording && (
+        {isRecording ? (
           <button
             onClick={onCancel}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 transition-all hover:border-red-200 hover:text-red-500 active:scale-90"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 active:scale-90"
             title="取消錄音"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-        )}
+        ) : hasMessages ? (
+          <button
+            onClick={onRequestNewSession}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 active:scale-90"
+            title="開始新對話"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12M18 12H6" />
+            </svg>
+          </button>
+        ) : null}
       </div>
 
       {/* Mic button — always centered */}
       <button
         onClick={isRecording ? onStop : onStart}
-        className={`relative flex h-[68px] w-[68px] items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
+        className={`relative flex h-[68px] w-[68px] items-center justify-center rounded-full active:scale-90 ${
           isRecording
-            ? "animate-ripple bg-red-500 hover:bg-red-600"
-            : "bg-brand-500 shadow-lg shadow-brand-200 hover:bg-brand-600 hover:shadow-xl hover:shadow-brand-300"
+            ? "animate-ripple bg-red-500"
+            : "bg-brand-500 shadow-lg shadow-brand-200"
         }`}
       >
         {isRecording ? (
@@ -97,7 +107,7 @@ export default function AudioRecorder({
         {hasMessages && !isRecording && (
           <button
             onClick={onSummarize}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 transition-all hover:border-brand-200 hover:text-brand-500 active:scale-90"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 active:scale-90"
             title="整理對話"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
