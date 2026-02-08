@@ -12,6 +12,8 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isSummaryCopied, setIsSummaryCopied] = useState(false);
+  const [isSummaryCopyFailed, setIsSummaryCopyFailed] = useState(false);
 
   // Detail view state
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
@@ -51,6 +53,19 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
   const handleContinue = () => {
     if (selectedConvId) {
       onLoadConversation(selectedConvId, detailMessages);
+    }
+  };
+
+  const handleCopySummary = async (summary: string) => {
+    try {
+      await navigator.clipboard.writeText(summary);
+      setIsSummaryCopied(true);
+      setIsSummaryCopyFailed(false);
+      setTimeout(() => setIsSummaryCopied(false), 1500);
+    } catch (err) {
+      console.error("Copy failed:", err);
+      setIsSummaryCopyFailed(true);
+      setTimeout(() => setIsSummaryCopyFailed(false), 1500);
     }
   };
 
@@ -94,7 +109,16 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
             <div className="flex h-full flex-col items-center justify-center gap-3">
               {conv?.summary && (
                 <div className="w-full rounded-xl bg-white p-4 ring-1 ring-sage-100">
-                  <p className="mb-2 font-body text-xs font-medium text-sage-400">整理摘要</p>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="font-body text-xs font-medium text-sage-400">整理摘要</p>
+                    <button
+                      type="button"
+                      onClick={() => handleCopySummary(conv.summary!)}
+                      className="rounded-full bg-sage-50 px-2.5 py-1 text-xs font-medium text-sage-500 transition-colors hover:bg-sage-100"
+                    >
+                      {isSummaryCopyFailed ? "複製失敗" : isSummaryCopied ? "已複製" : "複製"}
+                    </button>
+                  </div>
                   <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-gray-700">
                     {conv.summary}
                   </p>
