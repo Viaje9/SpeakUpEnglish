@@ -30,12 +30,13 @@ export default function App() {
 
     setIsLoading(true);
 
-    // Add user message placeholder
-    const userMessage: ChatMessageType = { role: "user" };
-    setMessages((prev) => [...prev, userMessage]);
-
     try {
       const audioBase64 = await blobToWavBase64(blob);
+
+      // Add user message with audio
+      const userMessage: ChatMessageType = { role: "user", audioBase64 };
+      setMessages((prev) => [...prev, userMessage]);
+
       const response = await sendChat(audioBase64, messages);
 
       const assistantMessage: ChatMessageType = {

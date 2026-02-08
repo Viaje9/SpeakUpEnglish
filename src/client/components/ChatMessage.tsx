@@ -19,7 +19,10 @@ export default function ChatMessage({ message, isLatest }: Props) {
         }`}
       >
         {isUser && (
-          <p className="text-sm opacity-80 italic">🎤 Voice message sent</p>
+          <p className="text-sm opacity-80 italic mb-1">🎤 Voice message</p>
+        )}
+        {isUser && message.audioBase64 && (
+          <AudioPlayer base64={message.audioBase64} autoPlay={false} />
         )}
         {!isUser && message.text && (
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
