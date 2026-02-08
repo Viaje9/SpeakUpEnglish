@@ -24,6 +24,8 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
   }, []);
 
   const handleDelete = async (id: string) => {
+    const confirmed = window.confirm("刪除聊天記錄時，會把歷史記錄一併刪除。確定要刪除嗎？");
+    if (!confirmed) return;
     await deleteConversation(id);
     setConversations((prev) => prev.filter((c) => c.id !== id));
   };
@@ -50,6 +52,7 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
   const formatDate = (ts: number) => {
     const d = new Date(ts);
     return d.toLocaleDateString("zh-TW", {
+      year: "numeric",
       month: "numeric",
       day: "numeric",
       hour: "2-digit",
@@ -160,9 +163,17 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
                 : "對話進行中...";
 
               return (
-                <button
+                <div
                   key={c.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleSelect(c.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleSelect(c.id);
+                    }
+                  }}
                   className="w-full animate-fade-up rounded-xl bg-white p-4 text-left ring-1 ring-sage-100 transition-shadow hover:shadow-sm"
                 >
                   <div className="mb-2 flex items-center justify-between">
@@ -174,6 +185,7 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
                         {c.messageCount} 則訊息
                       </span>
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDelete(c.id);
@@ -190,7 +202,7 @@ export default function HistoryPage({ onBack, onLoadConversation }: Props) {
                   <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-gray-700">
                     {preview}
                   </p>
-                </button>
+                </div>
               );
             })}
           </div>
