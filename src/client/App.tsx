@@ -56,6 +56,7 @@ export default function App() {
   const [autoPlaySignature, setAutoPlaySignature] = useState<string | null>(null);
   const [confirmNewChatOpen, setConfirmNewChatOpen] = useState(false);
   const [isNotePanelOpen, setIsNotePanelOpen] = useState(false);
+  const [isNoteEditing, setIsNoteEditing] = useState(false);
   const [noteText, setNoteText] = useState<string>(() => localStorage.getItem("speakup_floating_note") || "");
   const [notePanelHeight, setNotePanelHeight] = useState(() => {
     const parsed = Number.parseInt(localStorage.getItem("speakup_floating_note_height") || "", 10);
@@ -646,7 +647,11 @@ export default function App() {
             ref={notePanelRef}
             role="dialog"
             aria-label="筆記視窗"
-            className="pointer-events-auto fixed mx-auto flex flex-col overflow-hidden overscroll-contain rounded-2xl border border-sage-200 bg-white shadow-xl shadow-sage-500/25"
+            className={`pointer-events-auto fixed mx-auto flex flex-col overflow-hidden overscroll-contain rounded-2xl border bg-white shadow-xl shadow-sage-500/25 transition-colors ${
+              isNoteEditing
+                ? "border-brand-400 ring-2 ring-brand-200/70"
+                : "border-sage-200"
+            }`}
             style={{
               top: `${notePanelTop}px`,
               left: `${NOTE_PANEL_SIDE_GAP}px`,
@@ -678,8 +683,10 @@ export default function App() {
             <textarea
               value={noteText}
               onChange={(event) => handleNoteTextChange(event.target.value)}
+              onFocus={() => setIsNoteEditing(true)}
+              onBlur={() => setIsNoteEditing(false)}
               placeholder="在這裡記錄你的口說重點、句型或提醒..."
-              className="h-full w-full resize-none bg-white px-3 py-2.5 font-body text-sm leading-relaxed text-sage-500 outline-none placeholder:text-sage-300"
+              className="h-full w-full resize-none overscroll-contain bg-white px-3 py-2.5 font-body text-sm leading-relaxed text-sage-500 outline-none placeholder:text-sage-300 [touch-action:pan-y]"
             />
             <button
               type="button"
