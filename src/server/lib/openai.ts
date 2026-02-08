@@ -55,3 +55,15 @@ export async function chat(
 
   return { transcript, audioBase64: responseAudio };
 }
+
+export async function previewVoice(voice: Voice): Promise<string> {
+  const response = await getClient().audio.speech.create({
+    model: "tts-1",
+    voice,
+    input: "Hi there! I'm excited to practice English with you today.",
+    response_format: "mp3",
+  });
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return buffer.toString("base64");
+}

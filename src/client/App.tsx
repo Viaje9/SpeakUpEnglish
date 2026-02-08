@@ -11,12 +11,35 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [voice, setVoice] = useState<Voice>("nova");
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const { isRecording, start, stop } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const handlePreview = async () => {
+    if (isPreviewing) return;
+    setIsPreviewing(true);
+    try {
+      const res = await fetch(`/api/voice-preview?voice=${voice}`);
+      if (!res.ok) throw new Error("Preview failed");
+      const { audioBase64 } = await res.json();
+
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+      }
+      const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+      previewAudioRef.current = audio;
+      await audio.play();
+    } catch {
+      alert("Failed to preview voice.");
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
 
   const handleStart = async () => {
     try {
@@ -81,6 +104,13 @@ export default function App() {
               </option>
             ))}
           </select>
+          <button
+            onClick={handlePreview}
+            disabled={isPreviewing}
+            className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-50 active:scale-95 disabled:opacity-50"
+          >
+            {isPreviewing ? "..." : "Preview"}
+          </button>
         </div>
       </header>
 

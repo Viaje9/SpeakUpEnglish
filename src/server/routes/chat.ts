@@ -1,6 +1,7 @@
 import { Router } from "express";
-import type { ChatRequest, ChatResponse } from "../../shared/types.js";
-import { chat } from "../lib/openai.js";
+import type { ChatRequest, ChatResponse, Voice } from "../../shared/types.js";
+import { VOICES } from "../../shared/types.js";
+import { chat, previewVoice } from "../lib/openai.js";
 
 const router = Router();
 
@@ -19,6 +20,22 @@ router.post("/chat", async (req, res) => {
   } catch (err) {
     console.error("Chat error:", err);
     res.status(500).json({ error: "Failed to process chat request" });
+  }
+});
+
+router.get("/voice-preview", async (req, res) => {
+  try {
+    const voice = req.query.voice as string;
+    if (!voice || !VOICES.includes(voice as Voice)) {
+      res.status(400).json({ error: "Invalid voice" });
+      return;
+    }
+
+    const audioBase64 = await previewVoice(voice as Voice);
+    res.json({ audioBase64 });
+  } catch (err) {
+    console.error("Voice preview error:", err);
+    res.status(500).json({ error: "Failed to generate voice preview" });
   }
 });
 
