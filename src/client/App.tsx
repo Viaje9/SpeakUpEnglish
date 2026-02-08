@@ -1,21 +1,23 @@
 import { useState, useRef, useEffect } from "react";
 import type { ChatMessage as ChatMessageType, Voice, TokenUsage } from "../shared/types";
-import { VOICES } from "../shared/types";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import { blobToWavBase64 } from "./lib/audioUtils";
 import { sendChat } from "./lib/api";
 import ChatMessage from "./components/ChatMessage";
 import AudioRecorder from "./components/AudioRecorder";
+import VoiceSelect from "./components/VoiceSelect";
+
+const EMPTY_USAGE: TokenUsage = {
+  promptTokens: 0, completionTokens: 0, totalTokens: 0,
+  promptTextTokens: 0, promptAudioTokens: 0, completionTextTokens: 0, completionAudioTokens: 0,
+};
 
 export default function App() {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [voice, setVoice] = useState<Voice>("nova");
   const [isPreviewing, setIsPreviewing] = useState(false);
-  const [totalUsage, setTotalUsage] = useState<TokenUsage>({
-    promptTokens: 0, completionTokens: 0, totalTokens: 0,
-    promptTextTokens: 0, promptAudioTokens: 0, completionTextTokens: 0, completionAudioTokens: 0,
-  });
+  const [totalUsage, setTotalUsage] = useState<TokenUsage>(EMPTY_USAGE);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const { isRecording, start, stop } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -31,15 +33,12 @@ export default function App() {
       const res = await fetch(`/api/voice-preview?voice=${voice}`);
       if (!res.ok) throw new Error("Preview failed");
       const { audioBase64 } = await res.json();
-
-      if (previewAudioRef.current) {
-        previewAudioRef.current.pause();
-      }
+      if (previewAudioRef.current) previewAudioRef.current.pause();
       const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
       previewAudioRef.current = audio;
       await audio.play();
     } catch {
-      alert("Failed to preview voice.");
+      alert("語音試聽失敗，請稍後再試。");
     } finally {
       setIsPreviewing(false);
     }
@@ -49,31 +48,24 @@ export default function App() {
     try {
       await start();
     } catch {
-      alert("Could not access microphone. Please allow microphone permission.");
+      alert("無法存取麥克風，請允許麥克風權限。");
     }
   };
 
   const handleStop = async () => {
     const blob = await stop();
     if (blob.size === 0) return;
-
     setIsLoading(true);
-
     try {
       const audioBase64 = await blobToWavBase64(blob);
-
-      // Add user message with audio
       const userMessage: ChatMessageType = { role: "user", audioBase64 };
       setMessages((prev) => [...prev, userMessage]);
-
       const response = await sendChat(audioBase64, messages, voice);
-
       const assistantMessage: ChatMessageType = {
         role: "assistant",
         text: response.transcript,
         audioBase64: response.audioBase64,
       };
-
       setMessages((prev) => [...prev, assistantMessage]);
       setTotalUsage((prev) => ({
         promptTokens: prev.promptTokens + response.usage.promptTokens,
@@ -86,55 +78,65 @@ export default function App() {
       }));
     } catch (err) {
       console.error("Send failed:", err);
-      // Remove the user message placeholder on error
       setMessages((prev) => prev.slice(0, -1));
-      alert("Failed to send message. Please try again.");
+      alert("訊息傳送失敗，請再試一次。");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const costUSD = (() => {
+    const r = { textIn: 0.15, audioIn: 10, textOut: 0.60, audioOut: 20 };
+    return (
+      totalUsage.promptTextTokens * r.textIn +
+      totalUsage.promptAudioTokens * r.audioIn +
+      totalUsage.completionTextTokens * r.textOut +
+      totalUsage.completionAudioTokens * r.audioOut
+    ) / 1_000_000;
+  })();
+  const costTWD = costUSD * 32.5;
+
   return (
-    <div className="flex h-dvh flex-col bg-white">
+    <div className="mx-auto flex h-dvh max-w-lg flex-col bg-surface font-body">
       {/* Header */}
-      <header className="border-b bg-white px-4 py-3">
-        <h1 className="text-center text-lg font-semibold text-gray-800">
+      <header className="relative shrink-0 border-b border-sage-100 bg-white px-4 pb-3 pt-4">
+        <h1 className="text-center font-display text-xl font-semibold tracking-tight text-sage-500">
           SpeakUp English
         </h1>
-        <div className="mt-1 flex items-center justify-center gap-2">
-          <label htmlFor="voice" className="text-xs text-gray-400">
-            Voice:
-          </label>
-          <select
-            id="voice"
+        <p className="mt-0.5 text-center text-[11px] tracking-wide text-sage-300">
+          AI 英語口說練習
+        </p>
+
+        {/* Voice selector */}
+        <div className="mt-2.5 flex items-center justify-center">
+          <VoiceSelect
             value={voice}
-            onChange={(e) => setVoice(e.target.value as Voice)}
-            className="rounded border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-600 outline-none focus:border-blue-400"
-          >
-            {VOICES.map((v) => (
-              <option key={v} value={v}>
-                {v.charAt(0).toUpperCase() + v.slice(1)}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={handlePreview}
-            disabled={isPreviewing}
-            className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-50 active:scale-95 disabled:opacity-50"
-          >
-            {isPreviewing ? "..." : "Preview"}
-          </button>
+            onChange={setVoice}
+            onPreview={handlePreview}
+            isPreviewing={isPreviewing}
+          />
         </div>
       </header>
 
-      {/* Messages */}
+      {/* Chat area */}
       <main className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 && (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center text-gray-400">
-              <p className="text-4xl mb-2">🎙️</p>
-              <p className="text-sm">Press the microphone button to start</p>
-              <p className="text-xs mt-1">practicing English conversation</p>
+          <div className="flex h-full flex-col items-center justify-center gap-4">
+            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-100">
+              <svg className="h-10 w-10 text-brand-500" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="font-display text-base font-semibold text-sage-500">
+                準備好練習了嗎？
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-sage-300">
+                點擊下方麥克風開始說話
+                <br />
+                AI 會用語音和文字回覆你
+              </p>
             </div>
           </div>
         )}
@@ -148,26 +150,17 @@ export default function App() {
         <div ref={messagesEndRef} />
       </main>
 
-      {/* Token usage & cost */}
-      {totalUsage.totalTokens > 0 && (() => {
-        const USD_PER_M = { textIn: 0.15, audioIn: 10, textOut: 0.60, audioOut: 20 };
-        const TWD_RATE = 32.5;
-        const costUSD =
-          (totalUsage.promptTextTokens * USD_PER_M.textIn +
-           totalUsage.promptAudioTokens * USD_PER_M.audioIn +
-           totalUsage.completionTextTokens * USD_PER_M.textOut +
-           totalUsage.completionAudioTokens * USD_PER_M.audioOut) / 1_000_000;
-        const costTWD = costUSD * TWD_RATE;
-        return (
-          <div className="border-t bg-gray-50 px-4 py-1.5 text-center text-[11px] text-gray-400">
-            Tokens: {totalUsage.totalTokens.toLocaleString()}
-            {" | "}${costUSD.toFixed(4)} USD / NT${costTWD.toFixed(2)}
-          </div>
-        );
-      })()}
+      {/* Cost bar */}
+      {totalUsage.totalTokens > 0 && (
+        <div className="shrink-0 border-t border-sage-100 bg-sage-50 px-4 py-1.5 text-center font-body text-[10px] tracking-wide text-sage-300">
+          {totalUsage.totalTokens.toLocaleString()} tokens
+          {" / "}${costUSD.toFixed(4)} USD
+          {" / "}NT${costTWD.toFixed(2)}
+        </div>
+      )}
 
       {/* Recorder */}
-      <footer className="border-t bg-white">
+      <footer className="shrink-0 border-t border-sage-100 bg-white">
         <AudioRecorder
           isRecording={isRecording}
           isLoading={isLoading}

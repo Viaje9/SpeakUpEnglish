@@ -1,1 +1,45 @@
 @import "tailwindcss";
+
+@theme {
+  --font-display: "Fraunces", serif;
+  --font-body: "DM Sans", sans-serif;
+
+  --color-brand-50: #fff7ed;
+  --color-brand-100: #ffedd5;
+  --color-brand-200: #fed7aa;
+  --color-brand-300: #fdba74;
+  --color-brand-400: #fb923c;
+  --color-brand-500: #f97316;
+  --color-brand-600: #ea580c;
+
+  --color-sage-50: #f6f7f5;
+  --color-sage-100: #e8ebe5;
+  --color-sage-200: #d4d9cf;
+  --color-sage-300: #a8b29e;
+  --color-sage-400: #7d8b70;
+  --color-sage-500: #5a6650;
+
+  --color-surface: #fafaf8;
+  --color-surface-chat: #f2f1ed;
+
+  --animate-ripple: ripple 1.5s ease-out infinite;
+  --animate-bounce-in: bounce-in 0.4s ease-out;
+  --animate-fade-up: fade-up 0.3s ease-out;
+}
+
+@keyframes ripple {
+  0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.35); }
+  70% { box-shadow: 0 0 0 20px rgba(249, 115, 22, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+}
+
+@keyframes bounce-in {
+  0% { transform: scale(0.8); opacity: 0; }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fade-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

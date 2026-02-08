@@ -10,15 +10,18 @@ export default function AudioPlayer({ base64, autoPlay = true }: AudioPlayerProp
 
   useEffect(() => {
     if (autoPlay && audioRef.current) {
-      audioRef.current.play().catch(() => {
-        // Browser may block autoplay; user can click to play
-      });
+      audioRef.current.play().catch(() => {});
     }
   }, [base64, autoPlay]);
 
   const src = `data:audio/wav;base64,${base64}`;
 
   return (
-    <audio ref={audioRef} src={src} controls className="mt-2 w-full max-w-xs" />
+    <audio
+      ref={audioRef}
+      src={src}
+      controls
+      className="mt-2 h-9 w-full max-w-[260px] rounded-lg"
+    />
   );
 }
