@@ -3,6 +3,8 @@ import type {
   ChatResponse,
   SummarizeResponse,
   TranslateResponse,
+  AiChatMessage,
+  AiChatResponse,
   Voice,
 } from "../../shared/types";
 
@@ -58,6 +60,24 @@ export async function sendTranslate(text: string, apiKey?: string): Promise<Tran
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, apiKey }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export async function sendAiChat(
+  message: string,
+  history: AiChatMessage[],
+  apiKey?: string,
+): Promise<AiChatResponse> {
+  const res = await fetch("/api/ai-chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history, apiKey }),
   });
 
   if (!res.ok) {

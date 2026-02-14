@@ -72,6 +72,21 @@ export interface TranslateResponse {
   translatedText: string;
 }
 
+export interface AiChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AiChatRequest {
+  message: string;
+  history: AiChatMessage[];
+  apiKey?: string;
+}
+
+export interface AiChatResponse {
+  reply: string;
+}
+
 export interface Conversation {
   id: string;
   timestamp: number;

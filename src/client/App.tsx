@@ -17,6 +17,7 @@ import AudioRecorder from "./components/AudioRecorder";
 import SettingsPage from "./components/SettingsPage";
 import HistoryPage from "./components/HistoryPage";
 import ToastContainer from "./components/ToastContainer";
+import AiChatPanel from "./components/AiChatPanel";
 import { useToast } from "./hooks/useToast";
 
 type Page = "chat" | "settings" | "history";
@@ -641,7 +642,7 @@ export default function App() {
         )}
       </div>
 
-      <div className="pointer-events-none fixed inset-0 z-50">
+      <div className="pointer-events-none fixed inset-0 z-[80]">
         {isNotePanelOpen && (
           <div
             ref={notePanelRef}
@@ -704,6 +705,8 @@ export default function App() {
           </div>
         )}
       </div>
+
+      <AiChatPanel apiKey={apiKey} />
 
       {!isNotePanelOpen && (
         <button

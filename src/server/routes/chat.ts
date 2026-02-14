@@ -6,11 +6,13 @@ import type {
   SummarizeResponse,
   TranslateRequest,
   TranslateResponse,
+  AiChatRequest,
+  AiChatResponse,
   Voice,
   VoicePreviewRequest,
 } from "../../shared/types.js";
 import { VOICES } from "../../shared/types.js";
-import { chat, summarize, previewVoice, translateToTraditionalChinese } from "../lib/openai.js";
+import { chat, summarize, previewVoice, translateToTraditionalChinese, aiChat } from "../lib/openai.js";
 
 const router = Router();
 const hasServerApiKey = Boolean(process.env.OPENAI_API_KEY?.trim());
@@ -88,6 +90,28 @@ router.post("/translate", async (req, res) => {
   } catch (err) {
     console.error("Translate error:", err);
     res.status(500).json({ error: "Failed to translate text" });
+  }
+});
+
+router.post("/ai-chat", async (req, res) => {
+  try {
+    const { message, history, apiKey } = req.body as AiChatRequest;
+
+    if (!message?.trim()) {
+      res.status(400).json({ error: "message is required" });
+      return;
+    }
+    if (!hasValidApiKey(apiKey)) {
+      res.status(400).json({ error: "OpenAI API Key is required" });
+      return;
+    }
+
+    const reply = await aiChat(message, history ?? [], apiKey);
+    const response: AiChatResponse = { reply };
+    res.json(response);
+  } catch (err) {
+    console.error("AI chat error:", err);
+    res.status(500).json({ error: "Failed to process AI chat request" });
   }
 });
 

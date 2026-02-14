@@ -240,6 +240,37 @@ export async function previewVoice(voice: Voice, apiKey?: string): Promise<strin
   return buffer.toString("base64");
 }
 
+const AI_CHAT_SYSTEM_PROMPT = `You are a helpful English learning assistant for a Traditional Chinese (繁體中文) speaking user.
+
+Guidelines:
+- The user is learning English and may ask questions about grammar, vocabulary, sentence patterns, pronunciation, usage, etc.
+- Answer in Traditional Chinese (繁體中文) by default, but use English for examples, sentences, and vocabulary
+- Be concise and clear
+- Provide examples when helpful
+- If the user writes in English, you may respond in English or mix both languages as appropriate`;
+
+export async function aiChat(
+  message: string,
+  history: { role: "user" | "assistant"; content: string }[],
+  apiKey?: string,
+): Promise<string> {
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: "system", content: AI_CHAT_SYSTEM_PROMPT },
+  ];
+
+  for (const msg of history) {
+    messages.push({ role: msg.role, content: msg.content });
+  }
+  messages.push({ role: "user", content: message });
+
+  const response = await getClient(apiKey).chat.completions.create({
+    model: "gpt-4o-mini",
+    messages,
+  });
+
+  return response.choices[0].message.content?.trim() ?? "";
+}
+
 const TRANSLATE_PROMPT = `Translate the user's English text to Traditional Chinese (繁體中文).
 - Keep the meaning accurate and natural
 - Keep tone and intent
