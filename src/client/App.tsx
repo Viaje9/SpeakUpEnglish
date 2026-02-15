@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { ChatMessage as ChatMessageType, Voice, TokenUsage } from "../shared/types";
 import { DEFAULT_SYSTEM_PROMPT } from "../shared/types";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
@@ -96,10 +96,15 @@ export default function App() {
   });
   const floatingDraggedRef = useRef(false);
   const notePanelRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<Page>(page);
 
   const { toasts, show: showToast, dismiss: dismissToast } = useToast();
   const { isRecording, start, stop, cancel } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -367,7 +372,10 @@ export default function App() {
         text: response.transcript,
         audioBase64: response.audioBase64,
       };
-      setAutoPlaySignature(response.audioBase64);
+      const shouldAutoPlayAssistant =
+        pageRef.current === "chat" &&
+        (typeof document === "undefined" || document.visibilityState === "visible");
+      setAutoPlaySignature(shouldAutoPlayAssistant ? response.audioBase64 : null);
       setMessages((prev) => [...prev, assistantMessage]);
       if (response.memoryUpdate?.memory) {
         setMemory(response.memoryUpdate.memory);
@@ -448,6 +456,10 @@ export default function App() {
     setLastIncreaseTWD(0);
     setPage("chat");
   };
+
+  const handleAutoPlayHandled = useCallback(() => {
+    setAutoPlaySignature(null);
+  }, []);
 
   const calculateUsageCostUSD = (usage: TokenUsage) => {
     const r = { textIn: 0.15, audioIn: 10, textOut: 0.60, audioOut: 20 };
@@ -569,7 +581,7 @@ export default function App() {
                     !!msg.audioBase64 &&
                     msg.audioBase64 === autoPlaySignature
                   }
-                  onAutoPlayHandled={() => setAutoPlaySignature(null)}
+                  onAutoPlayHandled={handleAutoPlayHandled}
                   apiKey={apiKey}
                 />
               ))}

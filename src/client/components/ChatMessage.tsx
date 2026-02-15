@@ -16,6 +16,7 @@ export default function ChatMessage({ message, shouldAutoPlay, onAutoPlayHandled
   const isSummary = message.role === "summary";
   const [isAiPlaying, setIsAiPlaying] = useState(false);
   const aiAudioRef = useRef<HTMLAudioElement>(null);
+  const autoPlayDoneRef = useRef(false);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [showTranslated, setShowTranslated] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -51,6 +52,10 @@ export default function ChatMessage({ message, shouldAutoPlay, onAutoPlayHandled
   };
 
   useEffect(() => {
+    autoPlayDoneRef.current = false;
+  }, [message.audioBase64]);
+
+  useEffect(() => {
     if (isUser || !message.audioBase64 || !aiAudioRef.current) return;
     const audio = aiAudioRef.current;
     const onEnded = () => {
@@ -70,14 +75,40 @@ export default function ChatMessage({ message, shouldAutoPlay, onAutoPlayHandled
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
 
-    if (shouldAutoPlay) {
+    let autoPlayRetryTimer: number | null = null;
+    let isCancelled = false;
+
+    const tryAutoPlay = (attempt: number) => {
+      if (isCancelled || autoPlayDoneRef.current) return;
+
       audio.currentTime = 0;
       requestAudioFocus(audio);
-      audio.play().catch(() => {});
-      onAutoPlayHandled?.();
+      audio.play()
+        .then(() => {
+          if (isCancelled) return;
+          autoPlayDoneRef.current = true;
+          onAutoPlayHandled?.();
+        })
+        .catch(() => {
+          // iOS/Safari 偶發會在音訊尚未準備好時拒絕播放，短暫重試可提高成功率。
+          if (isCancelled || autoPlayDoneRef.current) return;
+          if (attempt < 3) {
+            autoPlayRetryTimer = window.setTimeout(() => {
+              tryAutoPlay(attempt + 1);
+            }, 180);
+          }
+        });
+    };
+
+    if (shouldAutoPlay && !autoPlayDoneRef.current) {
+      tryAutoPlay(1);
     }
 
     return () => {
+      isCancelled = true;
+      if (autoPlayRetryTimer !== null) {
+        window.clearTimeout(autoPlayRetryTimer);
+      }
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
