@@ -114,6 +114,7 @@ export default function AiChatPanel({ apiKey }: AiChatPanelProps) {
   const handlePanelPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (!target.closest("[data-ai-chat-drag-handle='true']")) return;
+    if (target.closest("button,textarea,input,select,a,[role='button']")) return;
     const panel = panelRef.current;
     if (!panel) return;
     e.preventDefault();

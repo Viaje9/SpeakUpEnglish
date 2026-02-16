@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 interface AudioRecorderProps {
   isRecording: boolean;
   isLoading: boolean;
@@ -23,6 +25,25 @@ export default function AudioRecorder({
   onSummarize,
   onRequestNewSession,
 }: AudioRecorderProps) {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!isRecording) {
+      setElapsedSeconds(0);
+      return;
+    }
+
+    const startAt = Date.now();
+    setElapsedSeconds(0);
+    const timerId = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startAt) / 1000));
+    }, 250);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, [isRecording]);
+
   if (isFinished) {
     return (
       <div className="flex flex-col items-center gap-3 py-4">
@@ -91,9 +112,14 @@ export default function AudioRecorder({
         }`}
       >
         {isRecording ? (
-          <svg className="h-7 w-7 text-white" fill="currentColor" viewBox="0 0 24 24">
-            <rect x="6" y="6" width="12" height="12" rx="3" />
-          </svg>
+          <div className="flex h-full w-full flex-col items-center justify-center">
+            <svg className="mt-0.5 h-6 w-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="6" width="12" height="12" rx="3" />
+            </svg>
+            <span className="mt-1 text-[10px] font-semibold leading-none text-white/95 tabular-nums">
+              {elapsedSeconds}s
+            </span>
+          </div>
         ) : (
           <svg className="h-7 w-7 text-white" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />

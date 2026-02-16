@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { DEFAULT_SYSTEM_PROMPT } from "../../shared/types";
 import type { Voice } from "../../shared/types";
 import VoiceSelect from "./VoiceSelect";
 import { sendVoicePreview } from "../lib/api";
@@ -75,6 +76,14 @@ export default function SettingsPage({
     }
   };
 
+  const handleResetSettings = () => {
+    setDraftVoice("nova");
+    setDraftApiKey("");
+    setDraftSystemPrompt(DEFAULT_SYSTEM_PROMPT);
+    setDraftMemory("");
+    setDraftAutoMemoryEnabled(false);
+  };
+
   return (
     <div className="relative flex h-full flex-col">
       {/* Header */}
@@ -149,9 +158,17 @@ export default function SettingsPage({
         </section>
 
         <section className="rounded-2xl bg-white p-4 ring-1 ring-sage-100">
-          <p className="mb-2 font-body text-xs font-medium tracking-wide text-sage-400">
-            System Prompt
-          </p>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="font-body text-xs font-medium tracking-wide text-sage-400">
+              System Prompt
+            </p>
+            <button
+              onClick={handleResetSettings}
+              className="rounded-lg border border-sage-200 bg-white px-2.5 py-1 font-body text-[11px] font-medium text-sage-500 transition-colors hover:border-brand-200 hover:text-brand-600"
+            >
+              重設設定
+            </button>
+          </div>
           <textarea
             value={draftSystemPrompt}
             onChange={(e) => setDraftSystemPrompt(e.target.value)}
@@ -159,7 +176,7 @@ export default function SettingsPage({
             className="w-full rounded-lg border border-sage-200 bg-sage-50 px-3 py-2 font-body text-sm text-sage-500 outline-none transition-colors focus:border-brand-300 focus:bg-white"
           />
           <p className="mt-2 text-[11px] text-sage-300">
-            每次聊天都會套用這段系統提示詞。
+            每次聊天都會套用這段系統提示詞。按「重設設定」後，請記得按右上角「儲存」。
           </p>
         </section>
 

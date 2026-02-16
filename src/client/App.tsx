@@ -4,6 +4,7 @@ import { DEFAULT_SYSTEM_PROMPT } from "../shared/types";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import { RecorderStartError } from "./hooks/useAudioRecorder";
 import { blobToWavBase64 } from "./lib/audioUtils";
+import { unlockAiAudioContext } from "./lib/aiAudioPlayer";
 import { sendChat, sendSummarize } from "./lib/api";
 import {
   createConversation,
@@ -115,6 +116,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let unlocked = false;
+    const unlockOnce = () => {
+      if (unlocked) return;
+      unlocked = true;
+      unlockAiAudioContext().catch(() => {
+        // Keep silent here; user can still unlock by manually pressing play.
+      });
+      window.removeEventListener("pointerdown", unlockOnce);
+      window.removeEventListener("keydown", unlockOnce);
+    };
+
+    window.addEventListener("pointerdown", unlockOnce, { passive: true });
+    window.addEventListener("keydown", unlockOnce);
+    return () => {
+      window.removeEventListener("pointerdown", unlockOnce);
+      window.removeEventListener("keydown", unlockOnce);
+    };
+  }, []);
+
+  useEffect(() => {
     const clampFloatingTop = (top: number) => {
       const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - FLOATING_BTN_HEIGHT - FLOATING_BTN_MARGIN);
       return Math.min(Math.max(top, FLOATING_BTN_MARGIN), maxTop);
@@ -200,6 +221,7 @@ export default function App() {
   const handleNotePanelPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
     if (!target.closest("[data-note-drag-handle='true']")) return;
+    if (target.closest("button,textarea,input,select,a,[role='button']")) return;
 
     const panelElement = notePanelRef.current;
     if (!panelElement) return;
@@ -312,12 +334,13 @@ export default function App() {
     localStorage.setItem("speakup_system_prompt", normalizedSystemPrompt);
     localStorage.setItem("speakup_memory", normalizedMemory);
     localStorage.setItem("speakup_auto_memory_enabled", nextAutoMemoryEnabled ? "1" : "0");
-    showToast("設定已儲存");
+    showToast("設定已儲存", "success");
     setPage("chat");
   };
 
   const handleStart = async () => {
     try {
+      await unlockAiAudioContext().catch(() => {});
       await start();
     } catch (err) {
       if (err instanceof RecorderStartError) {
@@ -372,9 +395,7 @@ export default function App() {
         text: response.transcript,
         audioBase64: response.audioBase64,
       };
-      const shouldAutoPlayAssistant =
-        pageRef.current === "chat" &&
-        (typeof document === "undefined" || document.visibilityState === "visible");
+      const shouldAutoPlayAssistant = pageRef.current === "chat";
       setAutoPlaySignature(shouldAutoPlayAssistant ? response.audioBase64 : null);
       setMessages((prev) => [...prev, assistantMessage]);
       if (response.memoryUpdate?.memory) {

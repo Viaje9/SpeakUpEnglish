@@ -1,7 +1,5 @@
 import { useState, useRef, useCallback } from "react";
 
-const MAX_DURATION_MS = 30_000;
-
 export type RecorderStartErrorCode =
   | "INSECURE_CONTEXT"
   | "MEDIA_DEVICES_UNAVAILABLE"
@@ -20,7 +18,15 @@ export function useAudioRecorder() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingStopResolverRef = useRef<((blob: Blob) => void) | null>(null);
+  const bufferedStopBlobRef = useRef<Blob | null>(null);
+  const discardOnStopRef = useRef(false);
+
+  const consumeBufferedBlob = () => {
+    const blob = bufferedStopBlobRef.current;
+    bufferedStopBlobRef.current = null;
+    return blob ?? new Blob();
+  };
 
   const start = useCallback(async () => {
     if (!window.isSecureContext) {
@@ -52,42 +58,50 @@ export function useAudioRecorder() {
     const recorder = supportedType ? new MediaRecorder(stream, { mimeType: supportedType }) : new MediaRecorder(stream);
     mediaRecorderRef.current = recorder;
     chunksRef.current = [];
+    bufferedStopBlobRef.current = null;
+    discardOnStopRef.current = false;
+    pendingStopResolverRef.current = null;
 
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
 
+    recorder.onstop = () => {
+      const shouldDiscard = discardOnStopRef.current;
+      discardOnStopRef.current = false;
+      const blob = shouldDiscard
+        ? new Blob()
+        : new Blob(chunksRef.current, { type: recorder.mimeType });
+      chunksRef.current = [];
+      recorder.stream.getTracks().forEach((t) => t.stop());
+      if (mediaRecorderRef.current === recorder) {
+        mediaRecorderRef.current = null;
+      }
+      setIsRecording(false);
+
+      const resolve = pendingStopResolverRef.current;
+      pendingStopResolverRef.current = null;
+      if (resolve) {
+        resolve(blob);
+      } else if (!shouldDiscard && blob.size > 0) {
+        // If recording stops unexpectedly, keep blob so the next stop() can consume it.
+        bufferedStopBlobRef.current = blob;
+      }
+    };
+
     recorder.start();
     setIsRecording(true);
-
-    timerRef.current = setTimeout(() => {
-      if (recorder.state === "recording") {
-        recorder.stop();
-      }
-    }, MAX_DURATION_MS);
   }, []);
 
   const stop = useCallback((): Promise<Blob> => {
     return new Promise((resolve) => {
       const recorder = mediaRecorderRef.current;
       if (!recorder || recorder.state !== "recording") {
-        resolve(new Blob());
+        resolve(consumeBufferedBlob());
         return;
       }
-
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
-        // Stop all tracks to release the microphone
-        recorder.stream.getTracks().forEach((t) => t.stop());
-        setIsRecording(false);
-        resolve(blob);
-      };
-
+      discardOnStopRef.current = false;
+      pendingStopResolverRef.current = resolve;
       recorder.stop();
     });
   }, []);
@@ -96,21 +110,23 @@ export function useAudioRecorder() {
     const recorder = mediaRecorderRef.current;
     if (!recorder) return;
 
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-
-    // Discard chunks and suppress onstop handler
+    bufferedStopBlobRef.current = null;
+    discardOnStopRef.current = true;
     chunksRef.current = [];
-    recorder.onstop = () => {
-      recorder.stream.getTracks().forEach((t) => t.stop());
-      setIsRecording(false);
-    };
+    const pendingResolve = pendingStopResolverRef.current;
+    pendingStopResolverRef.current = null;
+    pendingResolve?.(new Blob());
 
     if (recorder.state === "recording") {
       recorder.stop();
+      return;
     }
+
+    recorder.stream.getTracks().forEach((t) => t.stop());
+    if (mediaRecorderRef.current === recorder) {
+      mediaRecorderRef.current = null;
+    }
+    setIsRecording(false);
   }, []);
 
   return { isRecording, start, stop, cancel };

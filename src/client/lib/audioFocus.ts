@@ -12,3 +12,10 @@ export function releaseAudioFocus(audio: HTMLMediaElement): void {
     activeAudio = null;
   }
 }
+
+export function pauseActiveAudio(): void {
+  if (activeAudio && !activeAudio.paused) {
+    activeAudio.pause();
+  }
+  activeAudio = null;
+}
