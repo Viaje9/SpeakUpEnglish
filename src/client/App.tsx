@@ -654,90 +654,94 @@ export default function App() {
         )}
       </div>
 
-      <div className="pointer-events-none fixed inset-0 z-[80]">
-        {isNotePanelOpen && (
-          <div
-            ref={notePanelRef}
-            role="dialog"
-            aria-label="筆記視窗"
-            className={`pointer-events-auto fixed mx-auto flex flex-col overflow-hidden overscroll-contain rounded-2xl border bg-white shadow-xl shadow-sage-500/25 transition-colors ${
-              isNoteEditing
-                ? "border-brand-400 ring-2 ring-brand-200/70"
-                : "border-sage-200"
-            }`}
-            style={{
-              top: `${notePanelTop}px`,
-              left: `${NOTE_PANEL_SIDE_GAP}px`,
-              right: `${NOTE_PANEL_SIDE_GAP}px`,
-              height: `${notePanelHeight}px`,
-              maxWidth: `calc(32rem - ${NOTE_PANEL_SIDE_GAP * 2}px)`,
-            }}
-            onPointerDown={handleNotePanelPointerDown}
-            onPointerMove={handleNotePanelPointerMove}
-            onPointerUp={handleNotePanelPointerEnd}
-            onPointerCancel={handleNotePanelPointerEnd}
-          >
-            <header
-              data-note-drag-handle="true"
-              className="flex cursor-grab touch-none items-center justify-between border-b border-sage-100 bg-sage-50 px-3 py-2.5 active:cursor-grabbing"
-            >
-              <p className="font-body text-sm font-medium text-sage-500">小抄筆記</p>
-              <button
-                type="button"
-                onClick={() => setIsNotePanelOpen(false)}
-                className="rounded-md p-1 text-sage-400 transition-colors hover:bg-sage-100 hover:text-sage-500"
-                aria-label="關閉筆記視窗"
+      {page === "chat" && (
+        <>
+          <div className="pointer-events-none fixed inset-0 z-[80]">
+            {isNotePanelOpen && (
+              <div
+                ref={notePanelRef}
+                role="dialog"
+                aria-label="筆記視窗"
+                className={`pointer-events-auto fixed mx-auto flex flex-col overflow-hidden overscroll-contain rounded-2xl border bg-white shadow-xl shadow-sage-500/25 transition-colors ${
+                  isNoteEditing
+                    ? "border-brand-400 ring-2 ring-brand-200/70"
+                    : "border-sage-200"
+                }`}
+                style={{
+                  top: `${notePanelTop}px`,
+                  left: `${NOTE_PANEL_SIDE_GAP}px`,
+                  right: `${NOTE_PANEL_SIDE_GAP}px`,
+                  height: `${notePanelHeight}px`,
+                  maxWidth: `calc(32rem - ${NOTE_PANEL_SIDE_GAP * 2}px)`,
+                }}
+                onPointerDown={handleNotePanelPointerDown}
+                onPointerMove={handleNotePanelPointerMove}
+                onPointerUp={handleNotePanelPointerEnd}
+                onPointerCancel={handleNotePanelPointerEnd}
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </header>
-            <textarea
-              value={noteText}
-              onChange={(event) => handleNoteTextChange(event.target.value)}
-              onFocus={() => setIsNoteEditing(true)}
-              onBlur={() => setIsNoteEditing(false)}
-              placeholder="在這裡記錄你的口說重點、句型或提醒..."
-              className="h-full w-full resize-none overscroll-contain bg-white px-3 pt-2.5 pb-10 font-body text-sm leading-relaxed text-sage-500 outline-none placeholder:text-sage-300 [touch-action:pan-y]"
-            />
+                <header
+                  data-note-drag-handle="true"
+                  className="flex cursor-grab touch-none items-center justify-between border-b border-sage-100 bg-sage-50 px-3 py-2.5 active:cursor-grabbing"
+                >
+                  <p className="font-body text-sm font-medium text-sage-500">小抄筆記</p>
+                  <button
+                    type="button"
+                    onClick={() => setIsNotePanelOpen(false)}
+                    className="rounded-md p-1 text-sage-400 transition-colors hover:bg-sage-100 hover:text-sage-500"
+                    aria-label="關閉筆記視窗"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </header>
+                <textarea
+                  value={noteText}
+                  onChange={(event) => handleNoteTextChange(event.target.value)}
+                  onFocus={() => setIsNoteEditing(true)}
+                  onBlur={() => setIsNoteEditing(false)}
+                  placeholder="在這裡記錄你的口說重點、句型或提醒..."
+                  className="h-full w-full resize-none overscroll-contain bg-white px-3 pt-2.5 pb-10 font-body text-sm leading-relaxed text-sage-500 outline-none placeholder:text-sage-300 [touch-action:pan-y]"
+                />
+                <button
+                  type="button"
+                  aria-label="調整小抄高度"
+                  className="absolute bottom-2 left-2 rounded-md p-1 text-sage-300 transition-colors hover:bg-sage-100 hover:text-sage-400 active:bg-sage-100 touch-none"
+                  onPointerDown={handleNoteResizePointerDown}
+                  onPointerMove={handleNoteResizePointerMove}
+                  onPointerUp={handleNoteResizePointerEnd}
+                  onPointerCancel={handleNoteResizePointerEnd}
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6L18 18M6 10L14 18M10 6L18 14" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <AiChatPanel apiKey={apiKey} />
+
+          {!isNotePanelOpen && (
             <button
               type="button"
-              aria-label="調整小抄高度"
-              className="absolute bottom-2 left-2 rounded-md p-1 text-sage-300 transition-colors hover:bg-sage-100 hover:text-sage-400 active:bg-sage-100 touch-none"
-              onPointerDown={handleNoteResizePointerDown}
-              onPointerMove={handleNoteResizePointerMove}
-              onPointerUp={handleNoteResizePointerEnd}
-              onPointerCancel={handleNoteResizePointerEnd}
+              aria-label="開啟筆記視窗"
+              className="fixed right-0 z-[70] flex h-14 w-12 touch-none select-none items-center justify-center rounded-l-2xl border border-r-0 border-brand-300 bg-brand-500 text-white shadow-lg shadow-brand-400/25"
+              style={{ top: `${floatingBtnTop}px` }}
+              onClick={handleFloatingButtonClick}
+              onPointerDown={handleFloatingPointerDown}
+              onPointerMove={handleFloatingPointerMove}
+              onPointerUp={handleFloatingPointerEnd}
+              onPointerCancel={handleFloatingPointerEnd}
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 6L18 18M6 10L14 18M10 6L18 14" />
-              </svg>
+              <span className="flex flex-col gap-1.5" aria-hidden="true">
+                <span className="h-1 w-1 rounded-full bg-white/90" />
+                <span className="h-1 w-1 rounded-full bg-white/90" />
+                <span className="h-1 w-1 rounded-full bg-white/90" />
+              </span>
             </button>
-          </div>
-        )}
-      </div>
-
-      <AiChatPanel apiKey={apiKey} />
-
-      {!isNotePanelOpen && (
-        <button
-          type="button"
-          aria-label="開啟筆記視窗"
-          className="fixed right-0 z-[70] flex h-14 w-12 touch-none select-none items-center justify-center rounded-l-2xl border border-r-0 border-brand-300 bg-brand-500 text-white shadow-lg shadow-brand-400/25"
-          style={{ top: `${floatingBtnTop}px` }}
-          onClick={handleFloatingButtonClick}
-          onPointerDown={handleFloatingPointerDown}
-          onPointerMove={handleFloatingPointerMove}
-          onPointerUp={handleFloatingPointerEnd}
-          onPointerCancel={handleFloatingPointerEnd}
-        >
-          <span className="flex flex-col gap-1.5" aria-hidden="true">
-            <span className="h-1 w-1 rounded-full bg-white/90" />
-            <span className="h-1 w-1 rounded-full bg-white/90" />
-            <span className="h-1 w-1 rounded-full bg-white/90" />
-          </span>
-        </button>
+          )}
+        </>
       )}
     </>
   );
