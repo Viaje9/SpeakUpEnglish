@@ -112,7 +112,7 @@ export default function AudioRecorder({
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-4">
       {/* Left slot */}
-      <div className={isRecording ? "flex justify-end pr-5" : "flex justify-start pl-4"}>
+      <div className={isRecording ? "flex justify-end pr-5" : "flex items-center justify-between pl-4 pr-2"}>
         {isRecording ? (
           <button
             onClick={onCancel}
@@ -125,21 +125,35 @@ export default function AudioRecorder({
             </svg>
           </button>
         ) : (
-          <button
-            onClick={onToggleAiChat}
-            aria-label={isAiChatOpen ? "關閉 AI 助手" : "開啟 AI 助手"}
-            className={`flex h-11 w-11 items-center justify-center rounded-full border transition-colors active:scale-90 ${
-              isAiChatOpen
-                ? "border-sky-300 bg-sky-100 text-sky-700"
-                : "border-sky-200 bg-white text-sky-600 hover:bg-sky-50"
-            }`}
-            title={isAiChatOpen ? "關閉 AI 助手" : "開啟 AI 助手"}
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M18 6.75V4.5m0 2.25h2.25M18 6.75h-2.25M18 6.75V9" />
-            </svg>
-          </button>
+          <>
+            <button
+              onClick={onToggleAiChat}
+              aria-label={isAiChatOpen ? "關閉 AI 助手" : "開啟 AI 助手"}
+              className={`flex h-11 w-11 items-center justify-center rounded-full border transition-colors active:scale-90 ${
+                isAiChatOpen
+                  ? "border-sky-300 bg-sky-100 text-sky-700"
+                  : "border-sky-200 bg-white text-sky-600 hover:bg-sky-50"
+              }`}
+              title={isAiChatOpen ? "關閉 AI 助手" : "開啟 AI 助手"}
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 6.75V4.5m0 2.25h2.25M18 6.75h-2.25M18 6.75V9" />
+              </svg>
+            </button>
+            {hasMessages && (
+              <button
+                onClick={onRequestNewSession}
+                aria-label="開始新對話"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-200 bg-white text-sage-600 transition-colors hover:bg-sage-50 active:scale-90"
+                title="開始新對話"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+            )}
+          </>
         )}
       </div>
 
@@ -172,7 +186,7 @@ export default function AudioRecorder({
       </button>
 
       {/* Right slot */}
-      <div className={isRecording ? "flex justify-start pl-5" : "flex justify-end pr-4"}>
+      <div className={isRecording ? "flex justify-start pl-5" : "flex w-full items-center pl-2 pr-4"}>
         {isRecording ? (
           <button
             onClick={onTogglePause}
@@ -196,21 +210,35 @@ export default function AudioRecorder({
             )}
           </button>
         ) : (
-          <button
-            onClick={onToggleNotePanel}
-            aria-label={isNotePanelOpen ? "關閉小抄筆記" : "開啟小抄筆記"}
-            className={`flex h-11 w-11 items-center justify-center rounded-full border transition-colors active:scale-90 ${
-              isNotePanelOpen
-                ? "border-amber-300 bg-amber-100 text-amber-700"
-                : "border-amber-200 bg-white text-amber-600 hover:bg-amber-50"
-            }`}
-            title={isNotePanelOpen ? "關閉小抄筆記" : "開啟小抄筆記"}
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 3.75h6.586a1.5 1.5 0 011.06.44l2.164 2.164a1.5 1.5 0 01.44 1.06v11.836A1.5 1.5 0 0116.75 20.75h-9.5A1.5 1.5 0 015.75 19.25v-14A1.5 1.5 0 017.25 3.75H8z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 9.25h6M9 12.75h6M9 16.25h4" />
-            </svg>
-          </button>
+          <>
+            {hasMessages && (
+              <button
+                onClick={onSummarize}
+                aria-label="整理對話重點"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-brand-200 bg-white text-brand-600 shadow-sm transition-colors hover:bg-brand-50 active:scale-90"
+                title="整理對話重點"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 16h6M9 8h6M5.25 4.5h13.5A1.5 1.5 0 0120.25 6v12a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5z" />
+                </svg>
+              </button>
+            )}
+            <button
+              onClick={onToggleNotePanel}
+              aria-label={isNotePanelOpen ? "關閉小抄筆記" : "開啟小抄筆記"}
+              className={`ml-auto flex h-11 w-11 items-center justify-center rounded-full border transition-colors active:scale-90 ${
+                isNotePanelOpen
+                  ? "border-amber-300 bg-amber-100 text-amber-700"
+                  : "border-amber-200 bg-white text-amber-600 hover:bg-amber-50"
+              }`}
+              title={isNotePanelOpen ? "關閉小抄筆記" : "開啟小抄筆記"}
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 3.75h6.586a1.5 1.5 0 011.06.44l2.164 2.164a1.5 1.5 0 01.44 1.06v11.836A1.5 1.5 0 0116.75 20.75h-9.5A1.5 1.5 0 015.75 19.25v-14A1.5 1.5 0 017.25 3.75H8z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 9.25h6M9 12.75h6M9 16.25h4" />
+              </svg>
+            </button>
+          </>
         )}
       </div>
     </div>

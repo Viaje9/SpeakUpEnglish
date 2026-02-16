@@ -11,7 +11,6 @@ import {
   appendMessage,
   setSummary,
   migrateFromLocalStorage,
-  deleteConversation,
 } from "./lib/db";
 import ChatMessage from "./components/ChatMessage";
 import AudioRecorder from "./components/AudioRecorder";
@@ -55,10 +54,13 @@ export default function App() {
   const [isFinished, setIsFinished] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [autoPlaySignature, setAutoPlaySignature] = useState<string | null>(null);
-  const [confirmNewChatOpen, setConfirmNewChatOpen] = useState(false);
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [isNotePanelOpen, setIsNotePanelOpen] = useState(false);
   const [isNoteEditing, setIsNoteEditing] = useState(false);
+  const [retryPayload, setRetryPayload] = useState<{
+    audioBase64: string;
+    history: ChatMessageType[];
+  } | null>(null);
   const [noteText, setNoteText] = useState<string>(() => localStorage.getItem("speakup_floating_note") || "");
   const [notePanelHeight, setNotePanelHeight] = useState(() => {
     const parsed = Number.parseInt(localStorage.getItem("speakup_floating_note_height") || "", 10);
@@ -278,6 +280,7 @@ export default function App() {
 
   const handleStart = async () => {
     try {
+      setRetryPayload(null);
       await unlockAiAudioContext().catch(() => {});
       await start();
     } catch (err) {
@@ -311,17 +314,14 @@ export default function App() {
     }
   };
 
-  const handleStop = async () => {
-    const blob = await stop();
-    if (blob.size === 0) return;
+  const submitAudioMessage = useCallback(async (audioBase64: string, historySnapshot: ChatMessageType[]) => {
     setIsLoading(true);
     try {
-      const audioBase64 = await blobToWavBase64(blob);
       const userMessage: ChatMessageType = { role: "user", audioBase64 };
       setMessages((prev) => [...prev, userMessage]);
       const response = await sendChat(
         audioBase64,
-        messages,
+        historySnapshot,
         voice,
         systemPrompt,
         memory,
@@ -341,6 +341,7 @@ export default function App() {
         localStorage.setItem("speakup_memory", response.memoryUpdate.memory);
       }
       addUsage(response.usage);
+      setRetryPayload(null);
 
       // Persist to IndexedDB
       let convId = conversationId;
@@ -348,17 +349,43 @@ export default function App() {
         convId = await createConversation();
         setConversationId(convId);
       }
-      const baseOrder = messages.length;
+      const baseOrder = historySnapshot.length;
       await appendMessage(convId, userMessage, baseOrder);
       await appendMessage(convId, assistantMessage, baseOrder + 1);
     } catch (err) {
       console.error("Send failed:", err);
       setMessages((prev) => prev.slice(0, -1));
       setAutoPlaySignature(null);
-      showToast("訊息傳送失敗，請再試一次。");
+      setRetryPayload({ audioBase64, history: historySnapshot });
+      showToast("訊息傳送失敗，可點「重試送出」。");
     } finally {
       setIsLoading(false);
     }
+  }, [
+    apiKey,
+    autoMemoryEnabled,
+    conversationId,
+    memory,
+    systemPrompt,
+    voice,
+  ]);
+
+  const handleStop = async () => {
+    const blob = await stop();
+    if (blob.size === 0) return;
+
+    try {
+      const audioBase64 = await blobToWavBase64(blob);
+      await submitAudioMessage(audioBase64, messages);
+    } catch (err) {
+      console.error("Audio processing failed:", err);
+      showToast("音訊處理失敗，請再試一次。");
+    }
+  };
+
+  const handleRetrySend = async () => {
+    if (!retryPayload || isLoading) return;
+    await submitAudioMessage(retryPayload.audioBase64, retryPayload.history);
   };
 
   const handleSummarize = async () => {
@@ -387,23 +414,11 @@ export default function App() {
   const handleNewSession = () => {
     setMessages([]);
     setAutoPlaySignature(null);
+    setRetryPayload(null);
     setIsFinished(false);
     setTotalUsage(EMPTY_USAGE);
     setLastIncreaseTWD(0);
     setConversationId(null);
-  };
-
-  const handleConfirmNewSession = async () => {
-    if (conversationId) {
-      try {
-        await deleteConversation(conversationId);
-      } catch {
-        showToast("刪除聊天記錄失敗，請稍後再試。");
-        return;
-      }
-    }
-    setConfirmNewChatOpen(false);
-    handleNewSession();
   };
 
   const handleLoadConversation = (convId: string, msgs: ChatMessageType[]) => {
@@ -557,6 +572,19 @@ export default function App() {
               </div>
             )}
 
+            {retryPayload && !isRecording && !isLoading && !isSummarizing && (
+              <div className="flex items-center justify-between border-t border-amber-200 bg-amber-50 px-4 py-2">
+                <p className="font-body text-xs text-amber-800">上次語音送出失敗，已保留音檔</p>
+                <button
+                  type="button"
+                  onClick={handleRetrySend}
+                  className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-amber-600 active:scale-95"
+                >
+                  重試送出
+                </button>
+              </div>
+            )}
+
             {/* Recorder */}
             <footer className="shrink-0 border-t border-sage-100 bg-sage-50">
               <AudioRecorder
@@ -573,49 +601,12 @@ export default function App() {
                 onTogglePause={togglePause}
                 onCancel={cancel}
                 onSummarize={handleSummarize}
-                onRequestNewSession={() => setConfirmNewChatOpen(true)}
+                onRequestNewSession={handleNewSession}
                 onToggleAiChat={() => setIsAiChatOpen((prev) => !prev)}
                 onToggleNotePanel={handleFloatingButtonClick}
               />
             </footer>
           </>
-        )}
-
-        {confirmNewChatOpen && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-sage-500/35 px-5"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="new-chat-confirm-title"
-            aria-describedby="new-chat-confirm-desc"
-            onClick={() => setConfirmNewChatOpen(false)}
-          >
-            <div
-              className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl shadow-sage-500/20"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <p id="new-chat-confirm-title" className="font-display text-lg font-semibold text-sage-500">
-                開始新對話？
-              </p>
-              <p id="new-chat-confirm-desc" className="mt-2 text-sm leading-relaxed text-sage-400">
-                目前對話紀錄將被清除，且無法復原。
-              </p>
-              <div className="mt-5 grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setConfirmNewChatOpen(false)}
-                  className="rounded-xl border border-sage-100 bg-sage-50 px-3 py-2 text-sm font-medium text-sage-500 active:scale-95"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleConfirmNewSession}
-                  className="rounded-xl bg-brand-500 px-3 py-2 text-sm font-medium text-white shadow-md shadow-brand-200 active:scale-95"
-                >
-                  清除並開始
-                </button>
-              </div>
-            </div>
-          </div>
         )}
       </div>
 
