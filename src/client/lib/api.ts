@@ -32,7 +32,18 @@ export async function sendChat(
   });
 
   if (!res.ok) {
-    throw new Error(`API error: ${res.status}`);
+    let detail = "";
+    try {
+      const payload = await res.json() as { error?: string };
+      detail = payload.error?.trim() ?? "";
+    } catch {
+      try {
+        detail = (await res.text()).trim();
+      } catch {
+        // no-op
+      }
+    }
+    throw new Error(`API error: ${res.status}${detail ? ` - ${detail}` : ""}`);
   }
 
   return res.json();

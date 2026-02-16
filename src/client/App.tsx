@@ -33,6 +33,40 @@ const NOTE_PANEL_SIDE_GAP = 12;
 const NOTE_PANEL_INITIAL_HEIGHT = 320;
 const NOTE_PANEL_MIN_HEIGHT = 220;
 const NOTE_PANEL_SAFE_BOTTOM = 136;
+const CHAT_REQUEST_TARGET_MAX_BYTES = 8_500_000;
+const CHAT_REQUEST_STATIC_OVERHEAD_BYTES = 120_000;
+const CHAT_REQUEST_MAX_HISTORY_MESSAGES = 20;
+
+function estimateChatMessageSize(msg: ChatMessageType): number {
+  let size = 64;
+  if (msg.text) size += msg.text.length;
+  if (msg.audioBase64) size += msg.audioBase64.length;
+  return size;
+}
+
+function buildBoundedHistory(history: ChatMessageType[], currentAudioBase64: string): ChatMessageType[] {
+  const nonSummaryHistory = history.filter((msg) => msg.role !== "summary");
+  const historyBudget = Math.max(
+    0,
+    CHAT_REQUEST_TARGET_MAX_BYTES - currentAudioBase64.length - CHAT_REQUEST_STATIC_OVERHEAD_BYTES,
+  );
+
+  const selected: ChatMessageType[] = [];
+  let usedBytes = 0;
+  for (let i = nonSummaryHistory.length - 1; i >= 0; i -= 1) {
+    const msg = nonSummaryHistory[i];
+    const msgSize = estimateChatMessageSize(msg);
+    if (usedBytes + msgSize > historyBudget) {
+      if (selected.length === 0) continue;
+      break;
+    }
+    selected.push(msg);
+    usedBytes += msgSize;
+    if (selected.length >= CHAT_REQUEST_MAX_HISTORY_MESSAGES) break;
+  }
+
+  return selected.reverse();
+}
 
 export default function App() {
   const [page, setPage] = useState<Page>("chat");
@@ -323,9 +357,10 @@ export default function App() {
     try {
       const userMessage: ChatMessageType = { role: "user", audioBase64 };
       setMessages((prev) => [...prev, userMessage]);
+      const historyForRequest = buildBoundedHistory(historySnapshot, audioBase64);
       const response = await sendChat(
         audioBase64,
-        historySnapshot,
+        historyForRequest,
         voice,
         systemPrompt,
         memory,
@@ -361,7 +396,12 @@ export default function App() {
       setMessages((prev) => prev.slice(0, -1));
       setAutoPlaySignature(null);
       setRetryPayload({ audioBase64, history: historySnapshot });
-      showToast("訊息傳送失敗，可點「重試送出」。");
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("413")) {
+        showToast("語音內容過大，已超過請求大小限制。請縮短錄音或開始新對話。");
+      } else {
+        showToast("訊息傳送失敗，可點「重試送出」。");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -434,6 +474,7 @@ export default function App() {
     setTotalUsage(EMPTY_USAGE);
     setLastIncreaseTWD(0);
     setPage("chat");
+    unlockAiAudioContext().catch(() => {});
   };
 
   const handleAutoPlayHandled = useCallback(() => {

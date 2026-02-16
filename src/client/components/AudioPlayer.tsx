@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { releaseAudioFocus, requestAudioFocus } from "../lib/audioFocus";
+import { toAudioDataUrl } from "../lib/audioMime";
 
 interface AudioPlayerProps {
   base64: string;
@@ -85,7 +86,7 @@ export default function AudioPlayer({
   };
 
   const isUser = variant === "user";
-  const src = `data:audio/wav;base64,${base64}`;
+  const src = toAudioDataUrl(base64);
   const isCompact = size === "compact";
 
   return (

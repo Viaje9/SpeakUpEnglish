@@ -1,4 +1,5 @@
 import { pauseActiveAudio, releaseAudioFocus, requestAudioFocus } from "./audioFocus";
+import { toAudioDataUrl } from "./audioMime";
 
 type PlaybackListener = (activeKey: string | null) => void;
 
@@ -126,7 +127,7 @@ class AiAudioPlayer {
   }
 
   private async playWithElement(base64: string, key: string): Promise<void> {
-    const audio = new Audio(`data:audio/wav;base64,${base64}`);
+    const audio = new Audio(toAudioDataUrl(base64));
     this.fallbackAudio = audio;
     this.activeKey = key;
     this.notify();
