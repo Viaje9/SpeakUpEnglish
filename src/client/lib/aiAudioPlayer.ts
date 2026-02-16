@@ -1,4 +1,4 @@
-import { pauseActiveAudio } from "./audioFocus";
+import { pauseActiveAudio, releaseAudioFocus, requestAudioFocus } from "./audioFocus";
 
 type PlaybackListener = (activeKey: string | null) => void;
 
@@ -6,7 +6,9 @@ class AiAudioPlayer {
   private audioContext: AudioContext | null = null;
   private outputNode: GainNode | null = null;
   private currentSource: AudioBufferSourceNode | null = null;
+  private fallbackAudio: HTMLAudioElement | null = null;
   private activeKey: string | null = null;
+  private timelinePrimed = false;
   private listeners = new Set<PlaybackListener>();
   private decodeCache = new Map<string, AudioBuffer>();
   private decodeInFlight = new Map<string, Promise<AudioBuffer>>();
@@ -20,22 +22,80 @@ class AiAudioPlayer {
   }
 
   async unlock(): Promise<void> {
+    if (this.shouldPreferElementPlayback()) return;
     const context = this.ensureContext();
-    if (context.state === "running") return;
-    await context.resume();
+    if (context.state !== "running") {
+      await context.resume();
+    }
+  }
+
+  async prime(): Promise<void> {
+    if (this.shouldPreferElementPlayback()) return;
+    await this.unlock();
+    const context = this.ensureContext();
+    this.primeTimeline(context);
   }
 
   async play(base64: string, key: string): Promise<void> {
     pauseActiveAudio();
-    await this.unlock();
+    this.stop();
 
+    if (this.shouldPreferElementPlayback()) {
+      await this.playWithElement(base64, key);
+      return;
+    }
+
+    try {
+      await this.playWithWebAudio(base64, key);
+    } catch {
+      await this.playWithElement(base64, key);
+    }
+  }
+
+  stop(): void {
+    let shouldNotify = false;
+
+    if (this.currentSource) {
+      const source = this.currentSource;
+      this.currentSource = null;
+      source.onended = null;
+      try {
+        source.stop(0);
+      } catch {
+        // no-op
+      }
+      source.disconnect();
+      shouldNotify = true;
+    }
+
+    if (this.fallbackAudio) {
+      const audio = this.fallbackAudio;
+      this.fallbackAudio = null;
+      audio.onended = null;
+      audio.onpause = null;
+      audio.pause();
+      audio.currentTime = 0;
+      releaseAudioFocus(audio);
+      shouldNotify = true;
+    }
+
+    if (this.activeKey !== null) {
+      this.activeKey = null;
+      shouldNotify = true;
+    }
+
+    if (shouldNotify) {
+      this.notify();
+    }
+  }
+
+  private async playWithWebAudio(base64: string, key: string): Promise<void> {
+    await this.unlock();
     const context = this.ensureContext();
     if (context.state !== "running") {
       throw new Error("AudioContext is not running");
     }
-
     const buffer = await this.decodeWav(base64, context);
-    this.stop();
 
     const source = context.createBufferSource();
     source.buffer = buffer;
@@ -53,22 +113,58 @@ class AiAudioPlayer {
       this.notify();
     };
 
-    source.start(0);
+    try {
+      source.start(0);
+    } catch {
+      source.onended = null;
+      source.disconnect();
+      this.currentSource = null;
+      this.activeKey = null;
+      this.notify();
+      throw new Error("Failed to start WebAudio source");
+    }
   }
 
-  stop(): void {
-    if (!this.currentSource) return;
-    const source = this.currentSource;
-    this.currentSource = null;
-    this.activeKey = null;
-    source.onended = null;
-    try {
-      source.stop(0);
-    } catch {
-      // no-op
-    }
-    source.disconnect();
+  private async playWithElement(base64: string, key: string): Promise<void> {
+    const audio = new Audio(`data:audio/wav;base64,${base64}`);
+    this.fallbackAudio = audio;
+    this.activeKey = key;
     this.notify();
+
+    audio.onended = () => {
+      if (this.fallbackAudio !== audio) return;
+      this.fallbackAudio = null;
+      this.activeKey = null;
+      releaseAudioFocus(audio);
+      this.notify();
+    };
+
+    audio.onpause = () => {
+      if (this.fallbackAudio !== audio) return;
+      if (audio.ended) return;
+      this.fallbackAudio = null;
+      this.activeKey = null;
+      releaseAudioFocus(audio);
+      this.notify();
+    };
+
+    requestAudioFocus(audio);
+    try {
+      await audio.play();
+    } catch (error) {
+      if (this.fallbackAudio === audio) {
+        this.fallbackAudio = null;
+      }
+      audio.onended = null;
+      audio.onpause = null;
+      audio.pause();
+      releaseAudioFocus(audio);
+      if (this.activeKey === key) {
+        this.activeKey = null;
+        this.notify();
+      }
+      throw error;
+    }
   }
 
   private ensureContext(): AudioContext {
@@ -116,6 +212,30 @@ class AiAudioPlayer {
       listener(this.activeKey);
     }
   }
+
+  private primeTimeline(context: AudioContext): void {
+    if (this.timelinePrimed) return;
+    try {
+      const source = context.createBufferSource();
+      source.buffer = context.createBuffer(1, 1, context.sampleRate);
+      source.connect(this.outputNode!);
+      source.onended = () => {
+        source.disconnect();
+      };
+      source.start(0);
+      this.timelinePrimed = true;
+    } catch {
+      // Some browsers may still block start(). Keep unlock flow non-fatal.
+    }
+  }
+
+  private shouldPreferElementPlayback(): boolean {
+    if (typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    const isIOSDevice = /iPad|iPhone|iPod/.test(ua);
+    const isIPadOS = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    return isIOSDevice || isIPadOS;
+  }
 }
 
 const aiAudioPlayer = new AiAudioPlayer();
@@ -126,6 +246,10 @@ export function unlockAiAudioContext(): Promise<void> {
 
 export function playAiAudio(base64: string, key: string): Promise<void> {
   return aiAudioPlayer.play(base64, key);
+}
+
+export function primeAiAudioTimeline(): Promise<void> {
+  return aiAudioPlayer.prime();
 }
 
 export function stopAiAudio(): void {

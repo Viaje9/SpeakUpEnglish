@@ -52,7 +52,13 @@ export default function AudioPlayer({
   useEffect(() => {
     if (autoPlay && audioRef.current) {
       requestAudioFocus(audioRef.current);
-      audioRef.current.play().catch(() => {});
+      audioRef.current.play().catch((error: unknown) => {
+        const err = error as { name?: string; message?: string } | null;
+        console.warn("User audio auto-play failed", {
+          errorName: err?.name ?? "unknown",
+          errorMessage: err?.message ?? String(error),
+        });
+      });
     }
   }, [base64, autoPlay]);
 
@@ -68,7 +74,13 @@ export default function AudioPlayer({
     } else {
       audio.currentTime = 0;
       requestAudioFocus(audio);
-      audio.play().catch(() => {});
+      audio.play().catch((error: unknown) => {
+        const err = error as { name?: string; message?: string } | null;
+        console.warn("User audio play failed", {
+          errorName: err?.name ?? "unknown",
+          errorMessage: err?.message ?? String(error),
+        });
+      });
     }
   };
 

@@ -4,7 +4,8 @@ import { DEFAULT_SYSTEM_PROMPT } from "../shared/types";
 import { useAudioRecorder } from "./hooks/useAudioRecorder";
 import { RecorderStartError } from "./hooks/useAudioRecorder";
 import { blobToWavBase64 } from "./lib/audioUtils";
-import { unlockAiAudioContext } from "./lib/aiAudioPlayer";
+import { primeAiAudioTimeline, stopAiAudio, unlockAiAudioContext } from "./lib/aiAudioPlayer";
+import { pauseActiveAudio } from "./lib/audioFocus";
 import { sendChat, sendSummarize } from "./lib/api";
 import {
   createConversation,
@@ -281,6 +282,9 @@ export default function App() {
   const handleStart = async () => {
     try {
       setRetryPayload(null);
+      // Enter recording mode with silence: stop AI WebAudio/fallback and any active media element.
+      stopAiAudio();
+      pauseActiveAudio();
       await unlockAiAudioContext().catch(() => {});
       await start();
     } catch (err) {
@@ -372,6 +376,7 @@ export default function App() {
 
   const handleStop = async () => {
     const blob = await stop();
+    await primeAiAudioTimeline().catch(() => {});
     if (blob.size === 0) return;
 
     try {
