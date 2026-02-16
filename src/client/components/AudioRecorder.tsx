@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface AudioRecorderProps {
   isRecording: boolean;
@@ -6,11 +6,17 @@ interface AudioRecorderProps {
   isSummarizing: boolean;
   isFinished: boolean;
   hasMessages: boolean;
+  isPaused: boolean;
+  isAiChatOpen: boolean;
+  isNotePanelOpen: boolean;
   onStart: () => void;
   onStop: () => void;
+  onTogglePause: () => void;
   onCancel: () => void;
   onSummarize: () => void;
   onRequestNewSession: () => void;
+  onToggleAiChat: () => void;
+  onToggleNotePanel: () => void;
 }
 
 export default function AudioRecorder({
@@ -19,30 +25,58 @@ export default function AudioRecorder({
   isSummarizing,
   isFinished,
   hasMessages,
+  isPaused,
+  isAiChatOpen,
+  isNotePanelOpen,
   onStart,
   onStop,
+  onTogglePause,
   onCancel,
   onSummarize,
   onRequestNewSession,
+  onToggleAiChat,
+  onToggleNotePanel,
 }: AudioRecorderProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const recordingStartedAtRef = useRef<number | null>(null);
+  const accumulatedMsRef = useRef(0);
 
   useEffect(() => {
     if (!isRecording) {
+      recordingStartedAtRef.current = null;
+      accumulatedMsRef.current = 0;
       setElapsedSeconds(0);
       return;
     }
 
-    const startAt = Date.now();
-    setElapsedSeconds(0);
+    if (recordingStartedAtRef.current === null) {
+      recordingStartedAtRef.current = Date.now();
+    }
+
+    if (isPaused) {
+      if (recordingStartedAtRef.current !== null) {
+        accumulatedMsRef.current += Date.now() - recordingStartedAtRef.current;
+        recordingStartedAtRef.current = null;
+      }
+      setElapsedSeconds(Math.floor(accumulatedMsRef.current / 1000));
+      return;
+    }
+
+    if (recordingStartedAtRef.current === null) {
+      recordingStartedAtRef.current = Date.now();
+    }
+
     const timerId = window.setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startAt) / 1000));
+      const runningMs = recordingStartedAtRef.current
+        ? Date.now() - recordingStartedAtRef.current
+        : 0;
+      setElapsedSeconds(Math.floor((accumulatedMsRef.current + runningMs) / 1000));
     }, 250);
 
     return () => {
       window.clearInterval(timerId);
     };
-  }, [isRecording]);
+  }, [isRecording, isPaused]);
 
   if (isFinished) {
     return (
@@ -76,39 +110,48 @@ export default function AudioRecorder({
   }
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center py-4">
-      {/* Left slot — cancel while recording / new chat while idle */}
-      <div className="flex justify-end pr-5">
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-4">
+      {/* Left slot */}
+      <div className={isRecording ? "flex justify-end pr-5" : "flex justify-start pl-4"}>
         {isRecording ? (
           <button
             onClick={onCancel}
             className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 active:scale-90"
             title="取消錄音"
+            aria-label="取消錄音"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-        ) : hasMessages ? (
+        ) : (
           <button
-            onClick={onRequestNewSession}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 active:scale-90"
-            title="開始新對話"
+            onClick={onToggleAiChat}
+            aria-label={isAiChatOpen ? "關閉 AI 助手" : "開啟 AI 助手"}
+            className={`flex h-11 w-11 items-center justify-center rounded-full border transition-colors active:scale-90 ${
+              isAiChatOpen
+                ? "border-sky-300 bg-sky-100 text-sky-700"
+                : "border-sky-200 bg-white text-sky-600 hover:bg-sky-50"
+            }`}
+            title={isAiChatOpen ? "關閉 AI 助手" : "開啟 AI 助手"}
           >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12M18 12H6" />
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18 6.75V4.5m0 2.25h2.25M18 6.75h-2.25M18 6.75V9" />
             </svg>
           </button>
-        ) : null}
+        )}
       </div>
 
       {/* Mic button — always centered */}
       <button
         onClick={isRecording ? onStop : onStart}
         className={`relative flex h-[68px] w-[68px] items-center justify-center rounded-full active:scale-90 ${
-          isRecording
+          isRecording && !isPaused
             ? "animate-ripple bg-red-500"
-            : "bg-brand-500 shadow-lg shadow-brand-200"
+            : isRecording
+              ? "bg-red-400 shadow-lg shadow-red-200"
+              : "bg-brand-500 shadow-lg shadow-brand-200"
         }`}
       >
         {isRecording ? (
@@ -128,16 +171,44 @@ export default function AudioRecorder({
         )}
       </button>
 
-      {/* Right slot — summarize button */}
-      <div className="flex justify-start pl-5">
-        {hasMessages && !isRecording && (
+      {/* Right slot */}
+      <div className={isRecording ? "flex justify-start pl-5" : "flex justify-end pr-4"}>
+        {isRecording ? (
           <button
-            onClick={onSummarize}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-sage-100 bg-sage-50 text-sage-400 active:scale-90"
-            title="整理對話"
+            onClick={onTogglePause}
+            aria-label={isPaused ? "繼續錄音" : "暫停錄音"}
+            className={`flex h-11 w-11 items-center justify-center rounded-full border transition-colors active:scale-90 ${
+              isPaused
+                ? "border-slate-300 bg-slate-200 text-slate-700"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+            title={isPaused ? "繼續錄音" : "暫停錄音"}
+          >
+            {isPaused ? (
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 5v14l11-7-11-7z" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="7.5" y="5.5" width="3.5" height="13" rx="1.2" />
+                <rect x="13" y="5.5" width="3.5" height="13" rx="1.2" />
+              </svg>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={onToggleNotePanel}
+            aria-label={isNotePanelOpen ? "關閉小抄筆記" : "開啟小抄筆記"}
+            className={`flex h-11 w-11 items-center justify-center rounded-full border transition-colors active:scale-90 ${
+              isNotePanelOpen
+                ? "border-amber-300 bg-amber-100 text-amber-700"
+                : "border-amber-200 bg-white text-amber-600 hover:bg-amber-50"
+            }`}
+            title={isNotePanelOpen ? "關閉小抄筆記" : "開啟小抄筆記"}
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 3.75h6.586a1.5 1.5 0 011.06.44l2.164 2.164a1.5 1.5 0 01.44 1.06v11.836A1.5 1.5 0 0116.75 20.75h-9.5A1.5 1.5 0 015.75 19.25v-14A1.5 1.5 0 017.25 3.75H8z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 9.25h6M9 12.75h6M9 16.25h4" />
             </svg>
           </button>
         )}

@@ -6,15 +6,15 @@ const PANEL_SIDE_GAP = 12;
 const PANEL_INITIAL_HEIGHT = 380;
 const PANEL_MIN_HEIGHT = 260;
 const PANEL_SAFE_BOTTOM = 12;
-const BTN_HEIGHT = 56;
-const BTN_MARGIN = 12;
+const PANEL_MARGIN = 12;
 
 interface AiChatPanelProps {
   apiKey: string;
+  isOpen: boolean;
+  onRequestClose: () => void;
 }
 
-export default function AiChatPanel({ apiKey }: AiChatPanelProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function AiChatPanel({ apiKey, isOpen, onRequestClose }: AiChatPanelProps) {
   const [messages, setMessages] = useState<AiChatMessage[]>(() => {
     try {
       const stored = localStorage.getItem("speakup_ai_chat_messages");
@@ -26,14 +26,10 @@ export default function AiChatPanel({ apiKey }: AiChatPanelProps) {
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const [btnTop, setBtnTop] = useState(() => {
-    if (typeof window === "undefined") return 350;
-    return Math.max(BTN_MARGIN, window.innerHeight / 2 - BTN_HEIGHT / 2 + BTN_HEIGHT + 16);
-  });
   const [panelTop, setPanelTop] = useState(() => {
     if (typeof window === "undefined") return 96;
-    const maxTop = Math.max(BTN_MARGIN, window.innerHeight - PANEL_INITIAL_HEIGHT - PANEL_SAFE_BOTTOM);
-    return Math.min(Math.max(96, BTN_MARGIN), maxTop);
+    const maxTop = Math.max(PANEL_MARGIN, window.innerHeight - PANEL_INITIAL_HEIGHT - PANEL_SAFE_BOTTOM);
+    return Math.min(Math.max(96, PANEL_MARGIN), maxTop);
   });
   const [panelHeight, setPanelHeight] = useState(() => {
     const parsed = Number.parseInt(localStorage.getItem("speakup_ai_chat_height") || "", 10);
@@ -44,9 +40,6 @@ export default function AiChatPanel({ apiKey }: AiChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  const dragStateRef = useRef({ active: false, pointerId: -1, offsetY: 0, startClientY: 0 });
-  const floatingDraggedRef = useRef(false);
   const panelDragStateRef = useRef({ active: false, pointerId: -1, offsetY: 0 });
   const resizeStateRef = useRef({ active: false, pointerId: -1, startHeight: PANEL_INITIAL_HEIGHT, startClientY: 0 });
 
@@ -63,13 +56,9 @@ export default function AiChatPanel({ apiKey }: AiChatPanelProps) {
   // Window resize handler
   useEffect(() => {
     const handleResize = () => {
-      setBtnTop((prev) => {
-        const maxTop = Math.max(BTN_MARGIN, window.innerHeight - BTN_HEIGHT - BTN_MARGIN);
-        return Math.min(Math.max(prev, BTN_MARGIN), maxTop);
-      });
       setPanelTop((prevTop) => {
-        const maxTop = Math.max(BTN_MARGIN, window.innerHeight - panelHeight - PANEL_SAFE_BOTTOM);
-        const nextTop = Math.min(Math.max(prevTop, BTN_MARGIN), maxTop);
+        const maxTop = Math.max(PANEL_MARGIN, window.innerHeight - panelHeight - PANEL_SAFE_BOTTOM);
+        const nextTop = Math.min(Math.max(prevTop, PANEL_MARGIN), maxTop);
         setPanelHeight((prevH) => {
           const maxH = Math.max(PANEL_MIN_HEIGHT, window.innerHeight - nextTop - PANEL_SAFE_BOTTOM);
           return Math.min(Math.max(prevH, PANEL_MIN_HEIGHT), maxH);
@@ -80,35 +69,6 @@ export default function AiChatPanel({ apiKey }: AiChatPanelProps) {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [panelHeight]);
-
-  // --- Floating button drag ---
-  const handleBtnPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    floatingDraggedRef.current = false;
-    const rect = e.currentTarget.getBoundingClientRect();
-    dragStateRef.current = { active: true, pointerId: e.pointerId, offsetY: e.clientY - rect.top, startClientY: e.clientY };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handleBtnPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const ds = dragStateRef.current;
-    if (!ds.active || ds.pointerId !== e.pointerId) return;
-    const maxTop = Math.max(BTN_MARGIN, window.innerHeight - BTN_HEIGHT - BTN_MARGIN);
-    const nextTop = e.clientY - ds.offsetY;
-    if (Math.abs(e.clientY - ds.startClientY) > 3) floatingDraggedRef.current = true;
-    setBtnTop(Math.min(Math.max(nextTop, BTN_MARGIN), maxTop));
-  };
-
-  const handleBtnPointerEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (dragStateRef.current.pointerId !== e.pointerId) return;
-    dragStateRef.current = { active: false, pointerId: -1, offsetY: 0, startClientY: 0 };
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-  };
-
-  const handleBtnClick = () => {
-    if (floatingDraggedRef.current) { floatingDraggedRef.current = false; return; }
-    setIsOpen((prev) => !prev);
-  };
 
   // --- Panel drag ---
   const handlePanelPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -127,9 +87,9 @@ export default function AiChatPanel({ apiKey }: AiChatPanelProps) {
     const ds = panelDragStateRef.current;
     if (!ds.active || ds.pointerId !== e.pointerId) return;
     e.preventDefault();
-    const maxTop = Math.max(BTN_MARGIN, window.innerHeight - panelHeight - PANEL_SAFE_BOTTOM);
+    const maxTop = Math.max(PANEL_MARGIN, window.innerHeight - panelHeight - PANEL_SAFE_BOTTOM);
     const nextTop = e.clientY - ds.offsetY;
-    setPanelTop(Math.min(Math.max(nextTop, BTN_MARGIN), maxTop));
+    setPanelTop(Math.min(Math.max(nextTop, PANEL_MARGIN), maxTop));
   };
 
   const handlePanelPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -245,7 +205,7 @@ export default function AiChatPanel({ apiKey }: AiChatPanelProps) {
                 )}
                 <button
                   type="button"
-                  onClick={() => setIsOpen(false)}
+                  onClick={onRequestClose}
                   className="rounded-md p-1 text-sage-400 transition-colors hover:bg-sage-100 hover:text-sage-500"
                   aria-label="關閉 AI 聊天視窗"
                 >
@@ -340,24 +300,6 @@ export default function AiChatPanel({ apiKey }: AiChatPanelProps) {
         )}
       </div>
 
-      {/* Floating button */}
-      {!isOpen && (
-        <button
-          type="button"
-          aria-label="開啟 AI 聊天視窗"
-          className="fixed left-0 z-[70] flex h-14 w-12 touch-none select-none items-center justify-center rounded-r-2xl border border-l-0 border-brand-300 bg-brand-500 text-white shadow-lg shadow-brand-400/25"
-          style={{ top: `${btnTop}px` }}
-          onClick={handleBtnClick}
-          onPointerDown={handleBtnPointerDown}
-          onPointerMove={handleBtnPointerMove}
-          onPointerUp={handleBtnPointerEnd}
-          onPointerCancel={handleBtnPointerEnd}
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-          </svg>
-        </button>
-      )}
     </>
   );
 }

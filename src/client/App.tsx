@@ -28,7 +28,6 @@ const EMPTY_USAGE: TokenUsage = {
   promptTextTokens: 0, promptAudioTokens: 0, completionTextTokens: 0, completionAudioTokens: 0,
 };
 
-const FLOATING_BTN_HEIGHT = 56;
 const FLOATING_BTN_MARGIN = 12;
 const NOTE_PANEL_SIDE_GAP = 12;
 const NOTE_PANEL_INITIAL_HEIGHT = 320;
@@ -57,6 +56,7 @@ export default function App() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [autoPlaySignature, setAutoPlaySignature] = useState<string | null>(null);
   const [confirmNewChatOpen, setConfirmNewChatOpen] = useState(false);
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [isNotePanelOpen, setIsNotePanelOpen] = useState(false);
   const [isNoteEditing, setIsNoteEditing] = useState(false);
   const [noteText, setNoteText] = useState<string>(() => localStorage.getItem("speakup_floating_note") || "");
@@ -64,10 +64,6 @@ export default function App() {
     const parsed = Number.parseInt(localStorage.getItem("speakup_floating_note_height") || "", 10);
     if (!Number.isFinite(parsed)) return NOTE_PANEL_INITIAL_HEIGHT;
     return Math.max(NOTE_PANEL_MIN_HEIGHT, parsed);
-  });
-  const [floatingBtnTop, setFloatingBtnTop] = useState(() => {
-    if (typeof window === "undefined") return 280;
-    return Math.max(FLOATING_BTN_MARGIN, window.innerHeight / 2 - FLOATING_BTN_HEIGHT / 2);
   });
   const [notePanelTop, setNotePanelTop] = useState(() => {
     if (typeof window === "undefined") return 96;
@@ -78,12 +74,6 @@ export default function App() {
     return Math.min(Math.max(96, FLOATING_BTN_MARGIN), maxTop);
   });
 
-  const dragStateRef = useRef({
-    active: false,
-    pointerId: -1,
-    offsetY: 0,
-    startClientY: 0,
-  });
   const noteDragStateRef = useRef({
     active: false,
     pointerId: -1,
@@ -95,12 +85,11 @@ export default function App() {
     startHeight: NOTE_PANEL_INITIAL_HEIGHT,
     startClientY: 0,
   });
-  const floatingDraggedRef = useRef(false);
   const notePanelRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<Page>(page);
 
   const { toasts, show: showToast, dismiss: dismissToast } = useToast();
-  const { isRecording, start, stop, cancel } = useAudioRecorder();
+  const { isRecording, isPaused, start, stop, togglePause, cancel } = useAudioRecorder();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -136,11 +125,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const clampFloatingTop = (top: number) => {
-      const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - FLOATING_BTN_HEIGHT - FLOATING_BTN_MARGIN);
-      return Math.min(Math.max(top, FLOATING_BTN_MARGIN), maxTop);
-    };
-
     const clampNoteHeight = (height: number, top: number) => {
       const maxHeight = Math.max(
         NOTE_PANEL_MIN_HEIGHT,
@@ -155,7 +139,6 @@ export default function App() {
     };
 
     const handleResize = () => {
-      setFloatingBtnTop((prev) => clampFloatingTop(prev));
       setNotePanelTop((prevTop) => {
         const nextTop = clampNoteTop(prevTop, notePanelHeight);
         setNotePanelHeight((prevHeight) => clampNoteHeight(prevHeight, nextTop));
@@ -169,52 +152,7 @@ export default function App() {
     };
   }, [notePanelHeight]);
 
-  const handleFloatingPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    floatingDraggedRef.current = false;
-    const rect = event.currentTarget.getBoundingClientRect();
-    dragStateRef.current = {
-      active: true,
-      pointerId: event.pointerId,
-      offsetY: event.clientY - rect.top,
-      startClientY: event.clientY,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handleFloatingPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const dragState = dragStateRef.current;
-    if (!dragState.active || dragState.pointerId !== event.pointerId) return;
-
-    const maxTop = Math.max(FLOATING_BTN_MARGIN, window.innerHeight - FLOATING_BTN_HEIGHT - FLOATING_BTN_MARGIN);
-    const nextTop = event.clientY - dragState.offsetY;
-    if (Math.abs(event.clientY - dragState.startClientY) > 3) {
-      floatingDraggedRef.current = true;
-    }
-    setFloatingBtnTop(Math.min(Math.max(nextTop, FLOATING_BTN_MARGIN), maxTop));
-  };
-
-  const handleFloatingPointerEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const dragState = dragStateRef.current;
-    if (dragState.pointerId !== event.pointerId) return;
-
-    dragStateRef.current = {
-      active: false,
-      pointerId: -1,
-      offsetY: 0,
-      startClientY: 0,
-    };
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  };
-
   const handleFloatingButtonClick = () => {
-    if (floatingDraggedRef.current) {
-      floatingDraggedRef.current = false;
-      return;
-    }
     setIsNotePanelOpen((prev) => !prev);
   };
 
@@ -620,18 +558,24 @@ export default function App() {
             )}
 
             {/* Recorder */}
-            <footer className="shrink-0 border-t border-sage-100 bg-white">
+            <footer className="shrink-0 border-t border-sage-100 bg-sage-50">
               <AudioRecorder
                 isRecording={isRecording}
                 isLoading={isLoading}
                 isSummarizing={isSummarizing}
                 isFinished={isFinished}
                 hasMessages={hasUserMessages}
+                isPaused={isPaused}
+                isAiChatOpen={isAiChatOpen}
+                isNotePanelOpen={isNotePanelOpen}
                 onStart={handleStart}
                 onStop={handleStop}
+                onTogglePause={togglePause}
                 onCancel={cancel}
                 onSummarize={handleSummarize}
                 onRequestNewSession={() => setConfirmNewChatOpen(true)}
+                onToggleAiChat={() => setIsAiChatOpen((prev) => !prev)}
+                onToggleNotePanel={handleFloatingButtonClick}
               />
             </footer>
           </>
@@ -741,27 +685,11 @@ export default function App() {
             )}
           </div>
 
-          <AiChatPanel apiKey={apiKey} />
-
-          {!isNotePanelOpen && (
-            <button
-              type="button"
-              aria-label="開啟筆記視窗"
-              className="fixed right-0 z-[70] flex h-14 w-12 touch-none select-none items-center justify-center rounded-l-2xl border border-r-0 border-brand-300 bg-brand-500 text-white shadow-lg shadow-brand-400/25"
-              style={{ top: `${floatingBtnTop}px` }}
-              onClick={handleFloatingButtonClick}
-              onPointerDown={handleFloatingPointerDown}
-              onPointerMove={handleFloatingPointerMove}
-              onPointerUp={handleFloatingPointerEnd}
-              onPointerCancel={handleFloatingPointerEnd}
-            >
-              <span className="flex flex-col gap-1.5" aria-hidden="true">
-                <span className="h-1 w-1 rounded-full bg-white/90" />
-                <span className="h-1 w-1 rounded-full bg-white/90" />
-                <span className="h-1 w-1 rounded-full bg-white/90" />
-              </span>
-            </button>
-          )}
+          <AiChatPanel
+            apiKey={apiKey}
+            isOpen={isAiChatOpen}
+            onRequestClose={() => setIsAiChatOpen(false)}
+          />
         </>
       )}
     </>

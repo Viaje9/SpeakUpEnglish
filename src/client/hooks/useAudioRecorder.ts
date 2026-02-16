@@ -16,6 +16,7 @@ export class RecorderStartError extends Error {
 
 export function useAudioRecorder() {
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const pendingStopResolverRef = useRef<((blob: Blob) => void) | null>(null);
@@ -61,6 +62,7 @@ export function useAudioRecorder() {
     bufferedStopBlobRef.current = null;
     discardOnStopRef.current = false;
     pendingStopResolverRef.current = null;
+    setIsPaused(false);
 
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -78,6 +80,7 @@ export function useAudioRecorder() {
         mediaRecorderRef.current = null;
       }
       setIsRecording(false);
+      setIsPaused(false);
 
       const resolve = pendingStopResolverRef.current;
       pendingStopResolverRef.current = null;
@@ -96,7 +99,7 @@ export function useAudioRecorder() {
   const stop = useCallback((): Promise<Blob> => {
     return new Promise((resolve) => {
       const recorder = mediaRecorderRef.current;
-      if (!recorder || recorder.state !== "recording") {
+      if (!recorder || recorder.state === "inactive") {
         resolve(consumeBufferedBlob());
         return;
       }
@@ -104,6 +107,20 @@ export function useAudioRecorder() {
       pendingStopResolverRef.current = resolve;
       recorder.stop();
     });
+  }, []);
+
+  const togglePause = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) return;
+    if (recorder.state === "recording") {
+      recorder.pause();
+      setIsPaused(true);
+      return;
+    }
+    if (recorder.state === "paused") {
+      recorder.resume();
+      setIsPaused(false);
+    }
   }, []);
 
   const cancel = useCallback(() => {
@@ -117,7 +134,7 @@ export function useAudioRecorder() {
     pendingStopResolverRef.current = null;
     pendingResolve?.(new Blob());
 
-    if (recorder.state === "recording") {
+    if (recorder.state === "recording" || recorder.state === "paused") {
       recorder.stop();
       return;
     }
@@ -127,7 +144,8 @@ export function useAudioRecorder() {
       mediaRecorderRef.current = null;
     }
     setIsRecording(false);
+    setIsPaused(false);
   }, []);
 
-  return { isRecording, start, stop, cancel };
+  return { isRecording, isPaused, start, stop, togglePause, cancel };
 }
